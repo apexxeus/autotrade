@@ -1,0 +1,369 @@
+--// SERVICES
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+--// PLAYER
+local LOCAL_PLAYER = Players.LocalPlayer
+
+--// REMOTES
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local SaveHotbarEvent = Remotes:WaitForChild("SaveHotbarEvent")
+local GiftRequestEvent = Remotes:WaitForChild("GiftRequestEvent")
+local GiftAcceptEvent = Remotes:WaitForChild("GiftAcceptEvent")
+local FrameOpenEvent = Remotes:WaitForChild("FrameOpenEvent")
+
+--// CONSTANTS
+local TOOL_NAME = "Rainbow_Banana_Dancana__Cursed_Disco_Sea"
+
+--// MICRO GUI (FASTER LOAD)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "HyperTrade"
+screenGui.Parent = LOCAL_PLAYER:WaitForChild("PlayerGui")
+
+-- Main Frame
+local main = Instance.new("Frame")
+main.Size = UDim2.new(0, 220, 0, 170)
+main.Position = UDim2.new(0.5, -110, 0.5, -85)
+main.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+main.BorderSizePixel = 1
+main.BorderColor3 = Color3.fromRGB(100, 70, 200)
+main.Active = true
+main.Draggable = true
+main.Parent = screenGui
+
+-- Title
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 25)
+title.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+title.BorderSizePixel = 0
+title.Text = "AUTO TRADE BY RICOPOGI"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 14
+title.Parent = main
+
+-- Close
+local close = Instance.new("TextButton")
+close.Size = UDim2.new(0, 20, 0, 20)
+close.Position = UDim2.new(1, -25, 0, 2)
+close.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+close.BorderSizePixel = 0
+close.Text = "X"
+close.TextColor3 = Color3.fromRGB(255, 255, 255)
+close.Font = Enum.Font.GothamBold
+close.TextSize = 10
+close.Parent = title
+
+-- Inputs
+local target = Instance.new("TextBox")
+target.Size = UDim2.new(0.8, -5, 0, 25)
+target.Position = UDim2.new(0.1, 0, 0, 35)
+target.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+target.BorderSizePixel = 0
+target.Text = ""
+target.TextColor3 = Color3.fromRGB(255, 255, 255)
+target.Font = Enum.Font.Gotham
+target.TextSize = 12
+target.PlaceholderText = "Username"
+target.Parent = main
+
+local amount = Instance.new("TextBox")
+amount.Size = UDim2.new(0.8, -5, 0, 25)
+amount.Position = UDim2.new(0.1, 0, 0, 65)
+amount.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+amount.BorderSizePixel = 0
+amount.Text = ""
+amount.TextColor3 = Color3.fromRGB(255, 255, 255)
+amount.Font = Enum.Font.Gotham
+amount.TextSize = 12
+amount.PlaceholderText = "Amount"
+amount.Parent = main
+
+-- Control Buttons
+local startBtn = Instance.new("TextButton")
+startBtn.Size = UDim2.new(0.48, -5, 0, 25)
+startBtn.Position = UDim2.new(0, 10, 0, 100)
+startBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
+startBtn.BorderSizePixel = 0
+startBtn.Text = "⚡ START"
+startBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+startBtn.Font = Enum.Font.GothamBold
+startBtn.TextSize = 13
+startBtn.Parent = main
+
+local stopBtn = Instance.new("TextButton")
+stopBtn.Size = UDim2.new(0.48, -5, 0, 25)
+stopBtn.Position = UDim2.new(0.52, 0, 0, 100)
+stopBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+stopBtn.BorderSizePixel = 0
+stopBtn.Text = "STOP"
+stopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+stopBtn.Font = Enum.Font.GothamBold
+stopBtn.TextSize = 13
+stopBtn.Parent = main
+
+-- Auto-accept
+local autoBtn = Instance.new("TextButton")
+autoBtn.Size = UDim2.new(0.48, -5, 0, 25)
+autoBtn.Position = UDim2.new(0, 10, 0, 130)
+autoBtn.BackgroundColor3 = Color3.fromRGB(80, 160, 220)
+autoBtn.BorderSizePixel = 0
+autoBtn.Text = "AUTO"
+autoBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+autoBtn.Font = Enum.Font.GothamBold
+autoBtn.TextSize = 13
+autoBtn.Parent = main
+
+local antiBtn = Instance.new("TextButton")
+antiBtn.Size = UDim2.new(0.48, -5, 0, 25)
+antiBtn.Position = UDim2.new(0.52, 0, 0, 130)
+antiBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
+antiBtn.BorderSizePixel = 0
+antiBtn.Text = "ANTI-AFK"
+antiBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+antiBtn.Font = Enum.Font.GothamBold
+antiBtn.TextSize = 13
+antiBtn.Parent = main
+
+-- Status
+local status = Instance.new("TextLabel")
+status.Size = UDim2.new(1, -20, 0, 20)
+status.Position = UDim2.new(0, 10, 1, -25)
+status.BackgroundTransparency = 1
+status.Text = "Ready"
+status.TextColor3 = Color3.fromRGB(150, 255, 150)
+status.Font = Enum.Font.Gotham
+status.TextSize = 12
+status.Parent = main
+
+--// VARIABLES
+local isRunning = false
+local autoRunning = false
+local antiRunning = false
+local giftThread = nil
+local autoThread = nil
+local antiThread = nil
+local sentCount = 0
+
+--// ULTRA-FAST FUNCTIONS
+local function updateStatus(text, color)
+    status.Text = text
+    status.TextColor3 = color
+end
+
+-- No pcall, no error checking - MAXIMUM SPEED
+local function findTool()
+    local backpack = LOCAL_PLAYER.Backpack
+    if backpack then
+        for _, item in ipairs(backpack:GetChildren()) do
+            if item.Name == TOOL_NAME then
+                return item
+            end
+        end
+    end
+    
+    local character = LOCAL_PLAYER.Character
+    if character then
+        for _, item in ipairs(character:GetChildren()) do
+            if item.Name == TOOL_NAME then
+                return item
+            end
+        end
+    end
+    
+    return nil
+end
+
+-- HYPER-FAST GIFTING (0.001s DELAY)
+local function startGifting()
+    if isRunning then return end
+    
+    local targetName = target.Text
+    local amt = tonumber(amount.Text)
+    
+    if targetName == "" or not amt or amt <= 0 then
+        updateStatus("Invalid input", Color3.fromRGB(255, 100, 100))
+        return
+    end
+    
+    local targetPlayer = Players:FindFirstChild(targetName)
+    if not targetPlayer then
+        updateStatus("Player not found", Color3.fromRGB(255, 100, 100))
+        return
+    end
+    
+    -- Save hotbar async (don't wait)
+    task.spawn(function()
+        SaveHotbarEvent:FireServer(
+            {["1"] = "\255", ["2"] = "Slap Hand", ["3"] = "Lirili_Larila"},
+            {}
+        )
+    end)
+    
+    isRunning = true
+    sentCount = 0
+    startBtn.BackgroundColor3 = Color3.fromRGB(40, 140, 60)
+    updateStatus("MAX SPEED MODE", Color3.fromRGB(255, 220, 100))
+    
+    -- NO ERROR CHECKING, MAXIMUM SPEED
+    giftThread = task.spawn(function()
+        while isRunning and sentCount < amt do
+            local tool = findTool()
+            if tool then
+                -- FIRE AND FORGET - NO WAITING FOR RESPONSE
+                GiftRequestEvent:FireServer(targetPlayer, tool)
+                sentCount += 1
+                
+                -- Update status every 1000 items
+                if sentCount % 1000 == 0 then
+                    updateStatus("Sent: " .. sentCount, Color3.fromRGB(255, 220, 100))
+                end
+                
+                -- MICROSCOPIC DELAY: 0.001 seconds
+                task.wait(0.001)
+            else
+                updateStatus("No tool", Color3.fromRGB(255, 100, 100))
+                break
+            end
+        end
+        
+        isRunning = false
+        startBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
+        updateStatus("Done: " .. sentCount, Color3.fromRGB(100, 255, 100))
+    end)
+end
+
+local function stopGifting()
+    isRunning = false
+    startBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
+    updateStatus("Stopped", Color3.fromRGB(255, 150, 100))
+    
+    if giftThread then
+        task.cancel(giftThread)
+        giftThread = nil
+    end
+end
+
+-- ULTRA-FAST AUTO-ACCEPT (0.005s DELAY)
+local function startAuto()
+    if autoRunning then return end
+    
+    autoRunning = true
+    autoBtn.BackgroundColor3 = Color3.fromRGB(60, 140, 200)
+    updateStatus("Auto-accept ON", Color3.fromRGB(100, 200, 255))
+    
+    autoThread = task.spawn(function()
+        while autoRunning do
+            FrameOpenEvent:FireServer(true)
+            GiftAcceptEvent:FireServer()
+            FrameOpenEvent:FireServer(false)
+            task.wait(0.005)  -- Ultra-fast
+        end
+    end)
+end
+
+local function stopAuto()
+    autoRunning = false
+    autoBtn.BackgroundColor3 = Color3.fromRGB(80, 160, 220)
+    updateStatus("Auto-accept OFF", Color3.fromRGB(255, 150, 100))
+    
+    if autoThread then
+        task.cancel(autoThread)
+        autoThread = nil
+    end
+end
+
+-- WORKING ANTI-AFK SYSTEM
+local function startAnti()
+    if antiRunning then return end
+    
+    antiRunning = true
+    antiBtn.BackgroundColor3 = Color3.fromRGB(180, 80, 80)
+    antiBtn.Text = "ANTI ON"
+    updateStatus("Anti-AFK ON", Color3.fromRGB(100, 255, 100))
+    
+    antiThread = task.spawn(function()
+        local actionCount = 0
+        
+        while antiRunning do
+            actionCount += 1
+            
+            -- Multiple methods to prevent AFK:
+            
+            -- Method 1: Jump
+            local character = LOCAL_PLAYER.Character
+            if character then
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    humanoid.Jump = true
+                end
+            end
+            
+            -- Method 2: Simulate key press (Space)
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+            task.wait(0.05)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+            
+            -- Method 3: Simulate movement keys
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.W, false, game)
+            task.wait(0.05)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.W, false, game)
+            
+            -- Method 4: Mouse movement
+            VirtualInputManager:SendMouseMoveEvent(10, 0, game)
+            task.wait(0.05)
+            VirtualInputManager:SendMouseMoveEvent(-10, 0, game)
+            
+            updateStatus("Anti-AFK: Action #" .. actionCount, Color3.fromRGB(100, 200, 100))
+            
+            -- Wait 25 seconds before next action (Roblox AFK timer is 20 mins, but be safe)
+            task.wait(25)
+        end
+    end)
+end
+
+local function stopAnti()
+    antiRunning = false
+    antiBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
+    antiBtn.Text = "ANTI-AFK"
+    updateStatus("Anti-AFK OFF", Color3.fromRGB(255, 150, 100))
+    
+    if antiThread then
+        task.cancel(antiThread)
+        antiThread = nil
+    end
+end
+
+--// BUTTON EVENTS (MINIMAL)
+startBtn.MouseButton1Click:Connect(startGifting)
+stopBtn.MouseButton1Click:Connect(stopGifting)
+autoBtn.MouseButton1Click:Connect(function()
+    if not autoRunning then startAuto() else stopAuto() end
+end)
+antiBtn.MouseButton1Click:Connect(function()
+    if not antiRunning then startAnti() else stopAnti() end
+end)
+close.MouseButton1Click:Connect(function()
+    stopGifting()
+    stopAuto()
+    stopAnti()
+    screenGui:Destroy()
+end)
+
+--// GUARANTEED ANTI-AFK HOOK
+-- This connects to Roblox's built-in idle detection
+LOCAL_PLAYER.Idled:Connect(function()
+    if antiRunning then
+        -- When Roblox detects idle, press space to reset timer
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+        task.wait(0.1)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+        updateStatus("Idle prevention triggered", Color3.fromRGB(100, 255, 100))
+    end
+end)
+
+print("[SYSTEM] ⚡ HYPER SPEED TRADE LOADED")
+print("[SPEED] 0.001s delay (1000 gifts/second theoretical)")
+print("[ANTI-AFK] Working system with VirtualInput + Idle hook")
+print("[FEATURES] MAXIMUM SPEED + Guaranteed Anti-AFK")
