@@ -258,7 +258,7 @@ local function startAuto()
             FrameOpenEvent:FireServer(true)
             GiftAcceptEvent:FireServer()
             FrameOpenEvent:FireServer(false)
-            task.wait(0.005)  -- Ultra-fast
+            task.wait(1)  -- Ultra-fast
         end
     end)
 end
