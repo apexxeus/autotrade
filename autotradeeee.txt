@@ -14,7 +14,7 @@ local GiftAcceptEvent = Remotes:WaitForChild("GiftAcceptEvent")
 local FrameOpenEvent = Remotes:WaitForChild("FrameOpenEvent")
 
 --// CONSTANTS
-local TOOL_NAME = "Rainbow_Swag_Soda__Disco"
+local TOOL_NAME = "Rainbow_Swag_Soda_Disco"
 
 --// MICRO GUI (FASTER LOAD)
 local screenGui = Instance.new("ScreenGui")
