@@ -18,13 +18,13 @@ local TOOL_NAME = "Rainbow_Swag_Soda__Disco"
 
 --// MICRO GUI (FASTER LOAD)
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "HyperTrade"
+screenGui.Name = "AutoTrade"
 screenGui.Parent = LOCAL_PLAYER:WaitForChild("PlayerGui")
 
 -- Main Frame
 local main = Instance.new("Frame")
-main.Size = UDim2.new(0, 220, 0, 170)
-main.Position = UDim2.new(0.5, -110, 0.5, -85)
+main.Size = UDim2.new(0, 220, 0, 150)
+main.Position = UDim2.new(0.5, -110, 0.5, -75)
 main.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 main.BorderSizePixel = 1
 main.BorderColor3 = Color3.fromRGB(100, 70, 200)
@@ -37,7 +37,7 @@ local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 25)
 title.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 title.BorderSizePixel = 0
-title.Text = "AUTO TRADE BY RICOPOGI"
+title.Text = "AUTO TRADE SIMPLE"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 14
@@ -82,56 +82,33 @@ amount.Parent = main
 
 -- Control Buttons
 local startBtn = Instance.new("TextButton")
-startBtn.Size = UDim2.new(0.48, -5, 0, 25)
-startBtn.Position = UDim2.new(0, 10, 0, 100)
+startBtn.Size = UDim2.new(0.8, -5, 0, 25)
+startBtn.Position = UDim2.new(0.1, 0, 0, 100)
 startBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
 startBtn.BorderSizePixel = 0
-startBtn.Text = "⚡ START"
+startBtn.Text = "START TRADE"
 startBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 startBtn.Font = Enum.Font.GothamBold
 startBtn.TextSize = 13
 startBtn.Parent = main
 
 local stopBtn = Instance.new("TextButton")
-stopBtn.Size = UDim2.new(0.48, -5, 0, 25)
-stopBtn.Position = UDim2.new(0.52, 0, 0, 100)
+stopBtn.Size = UDim2.new(0.8, -5, 0, 25)
+stopBtn.Position = UDim2.new(0.1, 0, 0, 130)
 stopBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
 stopBtn.BorderSizePixel = 0
-stopBtn.Text = "STOP"
+stopBtn.Text = "STOP TRADE"
 stopBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 stopBtn.Font = Enum.Font.GothamBold
 stopBtn.TextSize = 13
 stopBtn.Parent = main
-
--- Auto-accept
-local autoBtn = Instance.new("TextButton")
-autoBtn.Size = UDim2.new(0.48, -5, 0, 25)
-autoBtn.Position = UDim2.new(0, 10, 0, 130)
-autoBtn.BackgroundColor3 = Color3.fromRGB(80, 160, 220)
-autoBtn.BorderSizePixel = 0
-autoBtn.Text = "AUTO"
-autoBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-autoBtn.Font = Enum.Font.GothamBold
-autoBtn.TextSize = 13
-autoBtn.Parent = main
-
-local antiBtn = Instance.new("TextButton")
-antiBtn.Size = UDim2.new(0.48, -5, 0, 25)
-antiBtn.Position = UDim2.new(0.52, 0, 0, 130)
-antiBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
-antiBtn.BorderSizePixel = 0
-antiBtn.Text = "ANTI-AFK"
-antiBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-antiBtn.Font = Enum.Font.GothamBold
-antiBtn.TextSize = 13
-antiBtn.Parent = main
 
 -- Status
 local status = Instance.new("TextLabel")
 status.Size = UDim2.new(1, -20, 0, 20)
 status.Position = UDim2.new(0, 10, 1, -25)
 status.BackgroundTransparency = 1
-status.Text = "Ready"
+status.Text = "Ready - Enter username & amount"
 status.TextColor3 = Color3.fromRGB(150, 255, 150)
 status.Font = Enum.Font.Gotham
 status.TextSize = 12
@@ -139,20 +116,19 @@ status.Parent = main
 
 --// VARIABLES
 local isRunning = false
-local autoRunning = false
-local antiRunning = false
+local autoAcceptRunning = false
+local antiAFKRunning = false
 local giftThread = nil
-local autoThread = nil
-local antiThread = nil
+local autoAcceptThread = nil
+local antiAFKThread = nil
 local sentCount = 0
 
---// ULTRA-FAST FUNCTIONS
+--// SIMPLE FUNCTIONS
 local function updateStatus(text, color)
     status.Text = text
     status.TextColor3 = color
 end
 
--- No pcall, no error checking - MAXIMUM SPEED
 local function findTool()
     local backpack = LOCAL_PLAYER.Backpack
     if backpack then
@@ -175,8 +151,8 @@ local function findTool()
     return nil
 end
 
--- HYPER-FAST GIFTING (0.001s DELAY)
-local function startGifting()
+--// AUTO TRADE FUNCTION
+local function startAutoTrade()
     if isRunning then return end
     
     local targetName = target.Text
@@ -193,37 +169,32 @@ local function startGifting()
         return
     end
     
-    -- Save hotbar async (don't wait)
-    task.spawn(function()
-        SaveHotbarEvent:FireServer(
-            {["1"] = "\255", ["2"] = "Slap Hand", ["3"] = "Lirili_Larila"},
-            {}
-        )
-    end)
+    -- Save hotbar
+    SaveHotbarEvent:FireServer(
+        {["1"] = "\255", ["2"] = "Slap Hand", ["3"] = "Rainbow_Swag_Soda__Disco"},
+        {}
+    )
     
     isRunning = true
     sentCount = 0
     startBtn.BackgroundColor3 = Color3.fromRGB(40, 140, 60)
-    updateStatus("MAX SPEED MODE", Color3.fromRGB(255, 220, 100))
+    updateStatus("Trading...", Color3.fromRGB(255, 220, 100))
     
-    -- NO ERROR CHECKING, MAXIMUM SPEED
     giftThread = task.spawn(function()
         while isRunning and sentCount < amt do
             local tool = findTool()
             if tool then
-                -- FIRE AND FORGET - NO WAITING FOR RESPONSE
                 GiftRequestEvent:FireServer(targetPlayer, tool)
                 sentCount += 1
                 
-                -- Update status every 1000 items
-                if sentCount % 1000 == 0 then
+                if sentCount % 10 == 0 then
                     updateStatus("Sent: " .. sentCount, Color3.fromRGB(255, 220, 100))
                 end
                 
-                -- MICROSCOPIC DELAY: 0.001 seconds
-                task.wait(0.001)
+                -- 1 second delay
+                task.wait(1)
             else
-                updateStatus("No tool", Color3.fromRGB(255, 100, 100))
+                updateStatus("No tool found", Color3.fromRGB(255, 100, 100))
                 break
             end
         end
@@ -234,7 +205,7 @@ local function startGifting()
     end)
 end
 
-local function stopGifting()
+local function stopAutoTrade()
     isRunning = false
     startBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 80)
     updateStatus("Stopped", Color3.fromRGB(255, 150, 100))
@@ -245,53 +216,28 @@ local function stopGifting()
     end
 end
 
--- ULTRA-FAST AUTO-ACCEPT (0.005s DELAY)
-local function startAuto()
-    if autoRunning then return end
+--// AUTO ACCEPT FUNCTION (SIMPLIFIED)
+local function startAutoAccept()
+    autoAcceptRunning = true
+    updateStatus("Auto-Accept ON", Color3.fromRGB(100, 200, 255))
     
-    autoRunning = true
-    autoBtn.BackgroundColor3 = Color3.fromRGB(60, 140, 200)
-    updateStatus("Auto-accept ON", Color3.fromRGB(100, 200, 255))
-    
-    autoThread = task.spawn(function()
-        while autoRunning do
+    autoAcceptThread = task.spawn(function()
+        while autoAcceptRunning do
             FrameOpenEvent:FireServer(true)
             GiftAcceptEvent:FireServer()
             FrameOpenEvent:FireServer(false)
-            task.wait(1)  -- Ultra-fast
+            task.wait(1)  -- Check every 1 second
         end
     end)
 end
 
-local function stopAuto()
-    autoRunning = false
-    autoBtn.BackgroundColor3 = Color3.fromRGB(80, 160, 220)
-    updateStatus("Auto-accept OFF", Color3.fromRGB(255, 150, 100))
-    
-    if autoThread then
-        task.cancel(autoThread)
-        autoThread = nil
-    end
-end
-
--- WORKING ANTI-AFK SYSTEM
-local function startAnti()
-    if antiRunning then return end
-    
-    antiRunning = true
-    antiBtn.BackgroundColor3 = Color3.fromRGB(180, 80, 80)
-    antiBtn.Text = "ANTI ON"
+--// ANTI-AFK FUNCTION
+local function startAntiAFK()
+    antiAFKRunning = true
     updateStatus("Anti-AFK ON", Color3.fromRGB(100, 255, 100))
     
-    antiThread = task.spawn(function()
-        local actionCount = 0
-        
-        while antiRunning do
-            actionCount += 1
-            
-            -- Multiple methods to prevent AFK:
-            
-            -- Method 1: Jump
+    antiAFKThread = task.spawn(function()
+        while antiAFKRunning do
             local character = LOCAL_PLAYER.Character
             if character then
                 local humanoid = character:FindFirstChildOfClass("Humanoid")
@@ -300,70 +246,112 @@ local function startAnti()
                 end
             end
             
-            -- Method 2: Simulate key press (Space)
             VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
             task.wait(0.05)
             VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
             
-            -- Method 3: Simulate movement keys
-            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.W, false, game)
-            task.wait(0.05)
-            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.W, false, game)
-            
-            -- Method 4: Mouse movement
-            VirtualInputManager:SendMouseMoveEvent(10, 0, game)
-            task.wait(0.05)
-            VirtualInputManager:SendMouseMoveEvent(-10, 0, game)
-            
-            updateStatus("Anti-AFK: Action #" .. actionCount, Color3.fromRGB(100, 200, 100))
-            
-            -- Wait 25 seconds before next action (Roblox AFK timer is 20 mins, but be safe)
-            task.wait(25)
+            task.wait(20)  -- Perform action every 20 seconds
         end
     end)
 end
 
-local function stopAnti()
-    antiRunning = false
-    antiBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
-    antiBtn.Text = "ANTI-AFK"
-    updateStatus("Anti-AFK OFF", Color3.fromRGB(255, 150, 100))
-    
-    if antiThread then
-        task.cancel(antiThread)
-        antiThread = nil
-    end
-end
+--// BUTTON EVENTS
+startBtn.MouseButton1Click:Connect(startAutoTrade)
+stopBtn.MouseButton1Click:Connect(stopAutoTrade)
 
---// BUTTON EVENTS (MINIMAL)
-startBtn.MouseButton1Click:Connect(startGifting)
-stopBtn.MouseButton1Click:Connect(stopGifting)
-autoBtn.MouseButton1Click:Connect(function()
-    if not autoRunning then startAuto() else stopAuto() end
+-- Toggle buttons on title bar for auto-accept and anti-afk
+local autoAcceptBtn = Instance.new("TextButton")
+autoAcceptBtn.Size = UDim2.new(0, 25, 0, 25)
+autoAcceptBtn.Position = UDim2.new(1, -55, 0, 2)
+autoAcceptBtn.BackgroundColor3 = Color3.fromRGB(80, 160, 220)
+autoAcceptBtn.BorderSizePixel = 0
+autoAcceptBtn.Text = "A"
+autoAcceptBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+autoAcceptBtn.Font = Enum.Font.GothamBold
+autoAcceptBtn.TextSize = 12
+autoAcceptBtn.Parent = title
+
+local antiAFKBtn = Instance.new("TextButton")
+antiAFKBtn.Size = UDim2.new(0, 25, 0, 25)
+antiAFKBtn.Position = UDim2.new(1, -85, 0, 2)
+antiAFKBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
+antiAFKBtn.BorderSizePixel = 0
+antiAFKBtn.Text = "F"
+antiAFKBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+antiAFKBtn.Font = Enum.Font.GothamBold
+antiAFKBtn.TextSize = 12
+antiAFKBtn.Parent = title
+
+autoAcceptBtn.MouseButton1Click:Connect(function()
+    if autoAcceptRunning then
+        autoAcceptRunning = false
+        autoAcceptBtn.BackgroundColor3 = Color3.fromRGB(80, 160, 220)
+        updateStatus("Auto-Accept OFF", Color3.fromRGB(255, 150, 100))
+        
+        if autoAcceptThread then
+            task.cancel(autoAcceptThread)
+            autoAcceptThread = nil
+        end
+    else
+        startAutoAccept()
+        autoAcceptBtn.BackgroundColor3 = Color3.fromRGB(60, 140, 200)
+    end
 end)
-antiBtn.MouseButton1Click:Connect(function()
-    if not antiRunning then startAnti() else stopAnti() end
+
+antiAFKBtn.MouseButton1Click:Connect(function()
+    if antiAFKRunning then
+        antiAFKRunning = false
+        antiAFKBtn.BackgroundColor3 = Color3.fromRGB(80, 180, 80)
+        updateStatus("Anti-AFK OFF", Color3.fromRGB(255, 150, 100))
+        
+        if antiAFKThread then
+            task.cancel(antiAFKThread)
+            antiAFKThread = nil
+        end
+    else
+        startAntiAFK()
+        antiAFKBtn.BackgroundColor3 = Color3.fromRGB(60, 160, 70)
+    end
 end)
+
 close.MouseButton1Click:Connect(function()
-    stopGifting()
-    stopAuto()
-    stopAnti()
+    stopAutoTrade()
+    
+    if autoAcceptRunning then
+        autoAcceptRunning = false
+        if autoAcceptThread then task.cancel(autoAcceptThread) end
+    end
+    
+    if antiAFKRunning then
+        antiAFKRunning = false
+        if antiAFKThread then task.cancel(antiAFKThread) end
+    end
+    
     screenGui:Destroy()
 end)
 
---// GUARANTEED ANTI-AFK HOOK
--- This connects to Roblox's built-in idle detection
+--// ROBLOX IDLE DETECTION HOOK
 LOCAL_PLAYER.Idled:Connect(function()
-    if antiRunning then
-        -- When Roblox detects idle, press space to reset timer
+    if antiAFKRunning then
         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
         task.wait(0.1)
         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
-        updateStatus("Idle prevention triggered", Color3.fromRGB(100, 255, 100))
+        updateStatus("Idle prevention", Color3.fromRGB(100, 255, 100))
     end
 end)
 
-print("[SYSTEM] ⚡ HYPER SPEED TRADE LOADED")
-print("[SPEED] 0.001s delay (1000 gifts/second theoretical)")
-print("[ANTI-AFK] Working system with VirtualInput + Idle hook")
-print("[FEATURES] MAXIMUM SPEED + Guaranteed Anti-AFK")
+print("[AUTO TRADE] Simple version loaded")
+print("[FEATURES] Auto Trade + Auto Accept + Anti-AFK")
+print("[DELAY] 1 second between trades")
+print("[CONTROLS] Start/Stop trade buttons + Auto-accept/Anti-AFK toggles")
+
+-- Initial tool check
+task.spawn(function()
+    task.wait(2)
+    local tool = findTool()
+    if tool then
+        updateStatus("Ready - Tool found", Color3.fromRGB(150, 255, 150))
+    else
+        updateStatus("Tool not found!", Color3.fromRGB(255, 100, 100))
+    end
+end)
