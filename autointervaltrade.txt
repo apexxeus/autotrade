@@ -16,7 +16,8 @@ local script_settings = {
     lastTradeTime = 0, -- Track when last trade was attempted
     tradeCooldown = 5, -- 5 second cooldown between trades
     waitingForTradeComplete = false, -- Track if we're waiting for trade to complete
-    lastInventoryCount = 0 -- Track last inventory count
+    lastInventoryCount = 0, -- Track last inventory count
+    maxReceiverInventory = 100 -- Maximum items a receiver can hold (100 as specified)
 };
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage");
@@ -79,7 +80,7 @@ Title.Name = "Title"
 Title.Size = UDim2.new(0.7, -10, 1, 0)
 Title.Position = UDim2.new(0, 10, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "Accurate Sequential Trade"
+Title.Text = "Smart Sequential Trade"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 18
@@ -138,7 +139,7 @@ InventoryTitle.Name = "InventoryTitle"
 InventoryTitle.Size = UDim2.new(1, -20, 0, 25)
 InventoryTitle.Position = UDim2.new(0, 10, 0, 5)
 InventoryTitle.BackgroundTransparency = 1
-InventoryTitle.Text = "INVENTORY COUNT"
+InventoryTitle.Text = "YOUR INVENTORY COUNT"
 InventoryTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 InventoryTitle.Font = Enum.Font.GothamBold
 InventoryTitle.TextSize = 16
@@ -240,23 +241,23 @@ for i = 1, 4 do
     statusDot.Parent = PlayersSection
     
     local statusDotCorner = Instance.new("UICorner")
-    statusDotCorner.CornerRadius = UDim.new(1, 0)
-    statusDotCorner.Parent = statusDot
-    
-    local statusLabel = Instance.new("TextLabel")
-    statusLabel.Name = "StatusLabel" .. i
-    statusLabel.Size = UDim2.new(0, 60, 0, 30)
-    statusLabel.Position = UDim2.new(0.7, 10, 0, yPos)
-    statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = "Waiting"
-    statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
-    statusLabel.Font = Enum.Font.Gotham
-    statusLabel.TextSize = 12
-    statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-    statusLabel.Parent = PlayersSection
-    playerStatusLabels[i] = statusLabel
-    
-    playerInputs[i] = playerBox
+statusDotCorner.CornerRadius = UDim.new(1, 0)
+statusDotCorner.Parent = statusDot
+
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Name = "StatusLabel" .. i
+statusLabel.Size = UDim2.new(0, 60, 0, 30)
+statusLabel.Position = UDim2.new(0.7, 10, 0, yPos)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "Waiting"
+statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextSize = 12
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+statusLabel.Parent = PlayersSection
+playerStatusLabels[i] = statusLabel
+
+playerInputs[i] = playerBox
 end
 
 -- Settings Section
@@ -343,7 +344,7 @@ AutoTradeButton.Name = "AutoTradeButton"
 AutoTradeButton.Size = UDim2.new(1, -20, 0, 45)
 AutoTradeButton.Position = UDim2.new(0, 10, 0, 40)
 AutoTradeButton.BackgroundColor3 = Color3.fromRGB(65, 105, 225)
-AutoTradeButton.Text = "START SEQUENTIAL TRADE"
+AutoTradeButton.Text = "START SMART TRADE"
 AutoTradeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 AutoTradeButton.Font = Enum.Font.GothamBold
 AutoTradeButton.TextSize = 16
@@ -478,8 +479,10 @@ local function updatePlayerStatus(playerIndex, status, trades)
                 statusDot.BackgroundColor3 = Color3.fromRGB(100, 100, 100) -- Gray
             elseif status == "Offline" then
                 statusDot.BackgroundColor3 = Color3.fromRGB(220, 20, 60) -- Red
-            elseif status == "Skipped" then
+            elseif status == "Inventory Full" then
                 statusDot.BackgroundColor3 = Color3.fromRGB(255, 140, 0) -- Orange
+            elseif status == "Skipped" then
+                statusDot.BackgroundColor3 = Color3.fromRGB(180, 180, 180) -- Light Gray
             end
         end
         
@@ -551,6 +554,50 @@ local function updateInventoryCount()
     end
     
     return count
+end
+
+-- Function to check if receiver's inventory is full (100 items)
+-- AND the player has received their 100 trades
+local function shouldSkipReceiver(receiver, playerObj)
+    if not playerObj or not playerObj.Character then
+        return false, "offline"
+    end
+    
+    -- First check if player has received their 100 trades
+    local tradeCount = script_settings.tradesPerPlayerCount[receiver] or 0
+    if tradeCount >= script_settings.tradesPerPlayer then
+        return true, "completed"
+    end
+    
+    -- Now check inventory count
+    local receiverCount = 0
+    
+    -- Check receiver's backpack
+    local receiverBackpack = playerObj:FindFirstChild("Backpack")
+    if receiverBackpack then
+        for _, item in ipairs(receiverBackpack:GetChildren()) do
+            if item:IsA("Tool") then
+                receiverCount = receiverCount + 1
+            end
+        end
+    end
+    
+    -- Check receiver's equipped tools
+    local receiverCharacter = playerObj.Character
+    if receiverCharacter then
+        for _, item in ipairs(receiverCharacter:GetChildren()) do
+            if item:IsA("Tool") then
+                receiverCount = receiverCount + 1
+            end
+        end
+    end
+    
+    -- Skip if receiver has 100 items AND has received less than 100 trades from us
+    if receiverCount >= 100 then
+        return true, "inventory_full"
+    end
+    
+    return false, "ok"
 end
 
 -- Track inventory changes to detect successful trades
@@ -773,7 +820,7 @@ local function stopAutoAccept()
     updateStatus("Auto Accept Disabled", Color3.fromRGB(255, 100, 100))
 end
 
--- ========== SEQUENTIAL TRADE FUNCTION ==========
+-- ========== SMART TRADE FUNCTION ==========
 local function moveToNextPlayer()
     local nextIndex = script_settings.currentReceiverIndex + 1
     if nextIndex > #script_settings.receivers then
@@ -794,6 +841,7 @@ local function getActivePlayer()
         if receiver and receiver ~= "" then
             local tradeCount = script_settings.tradesPerPlayerCount[receiver] or 0
             
+            -- Check if player has already received 100 trades from us
             if tradeCount >= script_settings.tradesPerPlayer then
                 updatePlayerStatus(currentIndex, "Completed", tradeCount)
                 moveToNextPlayer()
@@ -814,6 +862,21 @@ local function getActivePlayer()
             end
             
             if not playerObj.Character then
+                attempts = attempts + 1
+                continue
+            end
+            
+            -- Check if we should skip this receiver (has 100 items or has received 100 trades)
+            local shouldSkip, skipReason = shouldSkipReceiver(receiver, playerObj)
+            if shouldSkip then
+                if skipReason == "inventory_full" then
+                    updatePlayerStatus(currentIndex, "Inventory Full", tradeCount)
+                    updateStatus(receiver .. " has 100 items (max reached)", Color3.fromRGB(255, 140, 0))
+                    moveToNextPlayer()
+                elseif skipReason == "completed" then
+                    updatePlayerStatus(currentIndex, "Completed", tradeCount)
+                    moveToNextPlayer()
+                end
                 attempts = attempts + 1
                 continue
             end
@@ -858,10 +921,10 @@ local function incrementTradeCount(receiver)
     updateTotalTrades()
 end
 
-local function startSequentialTrade()
+local function startSmartTrade()
     if autoTradeRunning then return end
     
-    updateStatus("Sequential Trade Started", Color3.fromRGB(65, 105, 225))
+    updateStatus("Smart Trade Started", Color3.fromRGB(65, 105, 225))
     autoTradeRunning = true
     
     script_settings.waitingForTradeComplete = false
@@ -874,7 +937,13 @@ local function startSequentialTrade()
             if tradeCount < script_settings.tradesPerPlayer then
                 local playerObj = Players:FindFirstChild(receiver)
                 if playerObj then
-                    updatePlayerStatus(i, "Waiting", tradeCount)
+                    -- Check if receiver inventory is full on startup (100 items)
+                    local shouldSkip, skipReason = shouldSkipReceiver(receiver, playerObj)
+                    if shouldSkip and skipReason == "inventory_full" then
+                        updatePlayerStatus(i, "Inventory Full", tradeCount)
+                    else
+                        updatePlayerStatus(i, "Waiting", tradeCount)
+                    end
                 else
                     updatePlayerStatus(i, "Offline", tradeCount)
                 end
@@ -962,6 +1031,19 @@ local function startSequentialTrade()
             return
         end
         
+        -- Double-check if we should skip this receiver
+        local shouldSkip, skipReason = shouldSkipReceiver(receiver, script_settings.currentReceiverObj)
+        if shouldSkip then
+            if skipReason == "inventory_full" then
+                updateStatus(receiver .. " has 100 items (max reached)", Color3.fromRGB(255, 140, 0))
+                updatePlayerStatus(script_settings.currentReceiverIndex, "Inventory Full", script_settings.tradesPerPlayerCount[script_settings.currentReceiver] or 0)
+            elseif skipReason == "completed" then
+                updatePlayerStatus(script_settings.currentReceiverIndex, "Completed", script_settings.tradesPerPlayerCount[script_settings.currentReceiver] or 0)
+            end
+            moveToNextPlayer()
+            return
+        end
+        
         local character = Player.Character
         local humanoid = character and character:FindFirstChildOfClass("Humanoid")
         if not humanoid then return end
@@ -1023,7 +1105,7 @@ local function startSequentialTrade()
         task.wait(1)
         fireproximityprompt(tradePrompt)
         
-        updateStatus("Trading with " .. script_settings.currentReceiver + " (waiting for confirmation)...", Color3.fromRGB(65, 105, 225))
+        updateStatus("Trading with " .. script_settings.currentReceiver .. " (waiting for confirmation)...", Color3.fromRGB(65, 105, 225))
         CurrentPlayerLabel.Text = "Current: " .. script_settings.currentReceiver .. " | Progress: " .. 
                                  (script_settings.tradesPerPlayerCount[script_settings.currentReceiver] or 0) .. "/" .. script_settings.tradesPerPlayer
         
@@ -1058,19 +1140,19 @@ local function stopAutoTrade()
         end
     end
     
-    updateStatus("Sequential Trade Stopped", Color3.fromRGB(255, 100, 100))
+    updateStatus("Smart Trade Stopped", Color3.fromRGB(255, 100, 100))
     CurrentPlayerLabel.Text = "Current: None | Progress: 0/100"
 end
 
 -- ========== BUTTON FUNCTIONALITY ==========
 AutoTradeButton.MouseButton1Click:Connect(function()
     if not autoTradeRunning then
-        startSequentialTrade()
-        AutoTradeButton.Text = "STOP SEQUENTIAL TRADE"
+        startSmartTrade()
+        AutoTradeButton.Text = "STOP SMART TRADE"
         AutoTradeButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
     else
         stopAutoTrade()
-        AutoTradeButton.Text = "START SEQUENTIAL TRADE"
+        AutoTradeButton.Text = "START SMART TRADE"
         AutoTradeButton.BackgroundColor3 = Color3.fromRGB(65, 105, 225)
     end
 end)
@@ -1150,11 +1232,12 @@ updateTotalTrades()
 -- Initial Status
 updateStatus("Ready to start", Color3.fromRGB(200, 200, 200))
 
-print("Accurate Sequential Trade GUI Loaded!")
+print("Smart Sequential Trade GUI Loaded!")
 print("Features:")
 print("- Trade 100 items with Player 1 FIRST")
 print("- Then move to Player 2 for 100 items")
 print("- Then Player 3, then Player 4")
+print("- Will trade until player has exactly 100 items AND has received 100 trades from us")
 print("- ACCURATE COUNTERS: Only counts when inventory decreases")
 print("- 5-second cooldown between trades")
 print("- Real-time progress tracking")
