@@ -8,11 +8,11 @@ local script_settings = {
     },
     sender = "kill72472", -- username
     brainrot = "Electric Esok Sekolah", -- base name
-    tradesPerCycle = 1, -- 1 trade at a time for each player
-    currentReceiverIndex = 1, -- Current player in rotation
-    totalCycles = 0, -- How many complete cycles done
-    tradesPerPlayer = {}, -- Track trades per player
-    totalTradesGiven = 0 -- Track total trades across all players
+    tradesPerPlayer = 100, -- 100 trades per player
+    currentReceiverIndex = 1, -- Current player in sequence
+    tradesPerPlayerCount = {}, -- Track trades per player
+    totalTradesGiven = 0, -- Track total trades across all players
+    playerAttempts = {} -- Track failed attempts per player
 };
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage");
@@ -29,7 +29,8 @@ local CompleteGiftEvent = RemoteEvents:WaitForChild("CompleteGift");
 
 -- Initialize trade counters
 for i, receiver in ipairs(script_settings.receivers) do
-    script_settings.tradesPerPlayer[receiver] = 0
+    script_settings.tradesPerPlayerCount[receiver] = 0
+    script_settings.playerAttempts[receiver] = 0
 end
 
 -- GUI Setup
@@ -46,7 +47,7 @@ ScreenGui.ResetOnSpawn = false
 -- Main Frame
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 450, 0, 550) -- Increased height for multi-player controls
+MainFrame.Size = UDim2.new(0, 450, 0, 550)
 MainFrame.Position = UDim2.new(0.5, -225, 0.5, -275)
 MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
@@ -74,14 +75,13 @@ Title.Name = "Title"
 Title.Size = UDim2.new(0.7, -10, 1, 0)
 Title.Position = UDim2.new(0, 10, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "One-by-One Auto Trade"
+Title.Text = "Sequential 100-Item Trade"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 18
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = TitleBar
 
--- Credits beside title
 local CreditsLabel = Instance.new("TextLabel")
 CreditsLabel.Name = "CreditsLabel"
 CreditsLabel.Size = UDim2.new(0.3, -10, 1, 0)
@@ -170,7 +170,7 @@ PlayersTitle.Name = "PlayersTitle"
 PlayersTitle.Size = UDim2.new(1, -20, 0, 30)
 PlayersTitle.Position = UDim2.new(0, 10, 0, 0)
 PlayersTitle.BackgroundTransparency = 1
-PlayersTitle.Text = "Player Rotation (1 trade each)"
+PlayersTitle.Text = "Player Sequence (100 items each)"
 PlayersTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
 PlayersTitle.Font = Enum.Font.GothamBold
 PlayersTitle.TextSize = 16
@@ -185,7 +185,6 @@ local playerStatusLabels = {}
 for i = 1, 4 do
     local yPos = 30 + ((i-1) * 35)
     
-    -- Player number label
     local playerNumLabel = Instance.new("TextLabel")
     playerNumLabel.Name = "PlayerNum" .. i
     playerNumLabel.Size = UDim2.new(0, 40, 0, 30)
@@ -198,7 +197,6 @@ for i = 1, 4 do
     playerNumLabel.TextXAlignment = Enum.TextXAlignment.Left
     playerNumLabel.Parent = PlayersSection
     
-    -- Player username input
     local playerBox = Instance.new("TextBox")
     playerBox.Name = "PlayerBox" .. i
     playerBox.Size = UDim2.new(0.4, -5, 0, 30)
@@ -216,13 +214,12 @@ for i = 1, 4 do
     playerBoxCorner.CornerRadius = UDim.new(0, 6)
     playerBoxCorner.Parent = playerBox
     
-    -- Trade counter display
     local counterLabel = Instance.new("TextLabel")
     counterLabel.Name = "Counter" .. i
     counterLabel.Size = UDim2.new(0, 60, 0, 30)
     counterLabel.Position = UDim2.new(0.4, 10, 0, yPos)
     counterLabel.BackgroundTransparency = 1
-    counterLabel.Text = "0"
+    counterLabel.Text = "0/100"
     counterLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
     counterLabel.Font = Enum.Font.GothamBold
     counterLabel.TextSize = 14
@@ -230,7 +227,6 @@ for i = 1, 4 do
     counterLabel.Parent = PlayersSection
     playerCounters[i] = counterLabel
     
-    -- Status indicator
     local statusDot = Instance.new("Frame")
     statusDot.Name = "StatusDot" .. i
     statusDot.Size = UDim2.new(0, 20, 0, 20)
@@ -259,54 +255,59 @@ for i = 1, 4 do
     playerInputs[i] = playerBox
 end
 
--- Cycle Settings Section
-local CycleSection = Instance.new("Frame")
-CycleSection.Name = "CycleSection"
-CycleSection.Size = UDim2.new(1, 0, 0, 70)
-CycleSection.Position = UDim2.new(0, 0, 0, 250)
-CycleSection.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-CycleSection.Parent = ContentFrame
+-- Settings Section
+local SettingsSection = Instance.new("Frame")
+SettingsSection.Name = "SettingsSection"
+SettingsSection.Size = UDim2.new(1, 0, 0, 70)
+SettingsSection.Position = UDim2.new(0, 0, 0, 250)
+SettingsSection.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+SettingsSection.Parent = ContentFrame
 
-local CycleCornerSection = Instance.new("UICorner")
-CycleCornerSection.CornerRadius = UDim.new(0, 8)
-CycleCornerSection.Parent = CycleSection
+local SettingsCornerSection = Instance.new("UICorner")
+SettingsCornerSection.CornerRadius = UDim.new(0, 8)
+SettingsCornerSection.Parent = SettingsSection
 
-local CyclesLabel = Instance.new("TextLabel")
-CyclesLabel.Name = "CyclesLabel"
-CyclesLabel.Size = UDim2.new(0.5, -10, 0, 25)
-CyclesLabel.Position = UDim2.new(0, 10, 0, 10)
-CyclesLabel.BackgroundTransparency = 1
-CyclesLabel.Text = "Cycles Completed:"
-CyclesLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-CyclesLabel.Font = Enum.Font.Gotham
-CyclesLabel.TextSize = 14
-CyclesLabel.TextXAlignment = Enum.TextXAlignment.Left
-CyclesLabel.Parent = CycleSection
+local ItemsLabel = Instance.new("TextLabel")
+ItemsLabel.Name = "ItemsLabel"
+ItemsLabel.Size = UDim2.new(0.5, -10, 0, 25)
+ItemsLabel.Position = UDim2.new(0, 10, 0, 10)
+ItemsLabel.BackgroundTransparency = 1
+ItemsLabel.Text = "Items Per Player:"
+ItemsLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+ItemsLabel.Font = Enum.Font.Gotham
+ItemsLabel.TextSize = 14
+ItemsLabel.TextXAlignment = Enum.TextXAlignment.Left
+ItemsLabel.Parent = SettingsSection
 
-local CyclesValue = Instance.new("TextLabel")
-CyclesValue.Name = "CyclesValue"
-CyclesValue.Size = UDim2.new(0.5, -15, 0, 25)
-CyclesValue.Position = UDim2.new(0.5, 0, 0, 10)
-CyclesValue.BackgroundTransparency = 1
-CyclesValue.Text = "0"
-CyclesValue.TextColor3 = Color3.fromRGB(100, 200, 255)
-CyclesValue.Font = Enum.Font.GothamBold
-CyclesValue.TextSize = 16
-CyclesValue.TextXAlignment = Enum.TextXAlignment.Center
-CyclesValue.Parent = CycleSection
+local ItemsBox = Instance.new("TextBox")
+ItemsBox.Name = "ItemsBox"
+ItemsBox.Size = UDim2.new(0.5, -15, 0, 30)
+ItemsBox.Position = UDim2.new(0, 10, 0, 35)
+ItemsBox.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+ItemsBox.BorderSizePixel = 0
+ItemsBox.Text = "100"
+ItemsBox.PlaceholderText = "Enter items per player..."
+ItemsBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+ItemsBox.Font = Enum.Font.Gotham
+ItemsBox.TextSize = 14
+ItemsBox.Parent = SettingsSection
+
+local ItemsBoxCorner = Instance.new("UICorner")
+ItemsBoxCorner.CornerRadius = UDim.new(0, 6)
+ItemsBoxCorner.Parent = ItemsBox
 
 -- Total Trades Label
 local TotalTradesLabel = Instance.new("TextLabel")
 TotalTradesLabel.Name = "TotalTradesLabel"
-TotalTradesLabel.Size = UDim2.new(1, -20, 0, 25)
-TotalTradesLabel.Position = UDim2.new(0, 10, 0, 35)
+TotalTradesLabel.Size = UDim2.new(0.5, -15, 0, 30)
+TotalTradesLabel.Position = UDim2.new(0.5, 0, 0, 35)
 TotalTradesLabel.BackgroundTransparency = 1
-TotalTradesLabel.Text = "Total Trades: 0"
+TotalTradesLabel.Text = "Total: 0/400"
 TotalTradesLabel.TextColor3 = Color3.fromRGB(100, 200, 255)
 TotalTradesLabel.Font = Enum.Font.GothamBold
 TotalTradesLabel.TextSize = 16
 TotalTradesLabel.TextXAlignment = Enum.TextXAlignment.Center
-TotalTradesLabel.Parent = CycleSection
+TotalTradesLabel.Parent = SettingsSection
 
 -- Controls Section
 local ControlsSection = Instance.new("Frame")
@@ -337,8 +338,8 @@ local AutoTradeButton = Instance.new("TextButton")
 AutoTradeButton.Name = "AutoTradeButton"
 AutoTradeButton.Size = UDim2.new(1, -20, 0, 45)
 AutoTradeButton.Position = UDim2.new(0, 10, 0, 40)
-AutoTradeButton.BackgroundColor3 = Color3.fromRGB(65, 105, 225) -- Royal Blue
-AutoTradeButton.Text = "START ONE-BY-ONE TRADE"
+AutoTradeButton.BackgroundColor3 = Color3.fromRGB(65, 105, 225)
+AutoTradeButton.Text = "START SEQUENTIAL TRADE"
 AutoTradeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 AutoTradeButton.Font = Enum.Font.GothamBold
 AutoTradeButton.TextSize = 16
@@ -353,7 +354,7 @@ local AutoAcceptButton = Instance.new("TextButton")
 AutoAcceptButton.Name = "AutoAcceptButton"
 AutoAcceptButton.Size = UDim2.new(1, -20, 0, 45)
 AutoAcceptButton.Position = UDim2.new(0, 10, 0, 95)
-AutoAcceptButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50) -- Lime Green
+AutoAcceptButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
 AutoAcceptButton.Text = "START AUTO ACCEPT"
 AutoAcceptButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 AutoAcceptButton.Font = Enum.Font.GothamBold
@@ -369,7 +370,7 @@ local AntiAFKButton = Instance.new("TextButton")
 AntiAFKButton.Name = "AntiAFKButton"
 AntiAFKButton.Size = UDim2.new(1, -20, 0, 45)
 AntiAFKButton.Position = UDim2.new(0, 10, 0, 150)
-AntiAFKButton.BackgroundColor3 = Color3.fromRGB(138, 43, 226) -- Purple
+AntiAFKButton.BackgroundColor3 = Color3.fromRGB(138, 43, 226)
 AntiAFKButton.Text = "ENABLE ANTI-AFK"
 AntiAFKButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 AntiAFKButton.Font = Enum.Font.GothamBold
@@ -409,7 +410,7 @@ CurrentPlayerLabel.Name = "CurrentPlayerLabel"
 CurrentPlayerLabel.Size = UDim2.new(1, -20, 0.5, 0)
 CurrentPlayerLabel.Position = UDim2.new(0, 10, 0, 25)
 CurrentPlayerLabel.BackgroundTransparency = 1
-CurrentPlayerLabel.Text = "Current: None | Next: None"
+CurrentPlayerLabel.Text = "Current: None | Progress: 0/100"
 CurrentPlayerLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
 CurrentPlayerLabel.Font = Enum.Font.Gotham
 CurrentPlayerLabel.TextSize = 12
@@ -459,78 +460,58 @@ local function updateStatus(message, color)
 end
 
 -- Update player status displays
-local function updatePlayerStatus(playerIndex, status)
+local function updatePlayerStatus(playerIndex, status, trades)
     if playerStatusLabels[playerIndex] then
         playerStatusLabels[playerIndex].Text = status
         
-        -- Update status dot color
         local statusDot = PlayersSection:FindFirstChild("StatusDot" .. playerIndex)
         if statusDot then
-            if status == "Trading Now" then
+            if status == "Trading" then
                 statusDot.BackgroundColor3 = Color3.fromRGB(255, 215, 0) -- Gold
-            elseif status == "Online" then
+            elseif status == "Completed" then
                 statusDot.BackgroundColor3 = Color3.fromRGB(50, 205, 50) -- Green
             elseif status == "Waiting" then
                 statusDot.BackgroundColor3 = Color3.fromRGB(100, 100, 100) -- Gray
             elseif status == "Offline" then
                 statusDot.BackgroundColor3 = Color3.fromRGB(220, 20, 60) -- Red
-            elseif status == "Next" then
-                statusDot.BackgroundColor3 = Color3.fromRGB(65, 105, 225) -- Blue
+            elseif status == "Skipped" then
+                statusDot.BackgroundColor3 = Color3.fromRGB(255, 140, 0) -- Orange
+            end
+        end
+        
+        if playerCounters[playerIndex] then
+            playerCounters[playerIndex].Text = trades .. "/" .. script_settings.tradesPerPlayer
+            
+            if trades >= script_settings.tradesPerPlayer then
+                playerCounters[playerIndex].TextColor3 = Color3.fromRGB(50, 205, 50) -- Green
+            elseif trades > 0 then
+                playerCounters[playerIndex].TextColor3 = Color3.fromRGB(255, 215, 0) -- Gold
+            else
+                playerCounters[playerIndex].TextColor3 = Color3.fromRGB(100, 255, 100) -- Light Green
             end
         end
     end
 end
 
--- Update counter displays
-local function updatePlayerCounter(playerIndex, count)
-    if playerCounters[playerIndex] then
-        playerCounters[playerIndex].Text = tostring(count)
-        
-        -- Change counter color based on count
-        if count > 0 then
-            playerCounters[playerIndex].TextColor3 = Color3.fromRGB(255, 215, 0) -- Gold
-        else
-            playerCounters[playerIndex].TextColor3 = Color3.fromRGB(100, 255, 100) -- Light Green
-        end
+-- Update total trades display
+local function updateTotalTrades()
+    local total = 0
+    local maxTotal = script_settings.tradesPerPlayer * #script_settings.receivers
+    
+    for _, count in pairs(script_settings.tradesPerPlayerCount) do
+        total = total + count
     end
-end
-
--- Update total trades and cycles display
-local function updateTotalStats()
-    local total = script_settings.totalTradesGiven
-    TotalTradesLabel.Text = "Total Trades: " .. total
     
-    CyclesValue.Text = tostring(script_settings.totalCycles)
+    script_settings.totalTradesGiven = total
+    TotalTradesLabel.Text = "Total: " .. total .. "/" .. maxTotal
     
-    -- Change color based on progress
-    if total > 100 then
+    if total >= maxTotal then
         TotalTradesLabel.TextColor3 = Color3.fromRGB(50, 205, 50) -- Green
-        CyclesValue.TextColor3 = Color3.fromRGB(50, 205, 50)
     elseif total > 0 then
         TotalTradesLabel.TextColor3 = Color3.fromRGB(255, 215, 0) -- Gold
-        CyclesValue.TextColor3 = Color3.fromRGB(255, 215, 0)
     else
         TotalTradesLabel.TextColor3 = Color3.fromRGB(100, 200, 255) -- Blue
-        CyclesValue.TextColor3 = Color3.fromRGB(100, 200, 255)
     end
-end
-
--- Get next player in rotation
-local function getNextPlayer(currentIndex)
-    local nextIndex = currentIndex + 1
-    if nextIndex > #script_settings.receivers then
-        nextIndex = 1
-        script_settings.totalCycles = script_settings.totalCycles + 1
-        print("Completed cycle #" .. script_settings.totalCycles)
-    end
-    return nextIndex
-end
-
--- Check if a player is online
-local function isPlayerOnline(username)
-    if username == nil or username == "" then return false end
-    local playerObj = Players:FindFirstChild(username)
-    return playerObj ~= nil
 end
 
 -- INVENTORY COUNT FUNCTION
@@ -538,7 +519,6 @@ local function updateInventoryCount()
     local count = 0
     local backpack = Player:FindFirstChild("Backpack")
     
-    -- Count tools in backpack (excluding Basic Bat)
     if backpack then
         for _, item in ipairs(backpack:GetChildren()) do
             if item:IsA("Tool") and not string.find(item.Name:lower(), "basic bat") then
@@ -547,7 +527,6 @@ local function updateInventoryCount()
         end
     end
     
-    -- Count tools equipped on character (excluding Basic Bat)
     local character = Player.Character
     if character then
         for _, item in ipairs(character:GetChildren()) do
@@ -557,10 +536,8 @@ local function updateInventoryCount()
         end
     end
     
-    -- Update the inventory display
     InventoryLabel.Text = "Items: " .. count
     
-    -- Change color based on count
     if count == 0 then
         InventoryLabel.TextColor3 = Color3.fromRGB(255, 100, 100) -- Red
     elseif count < 10 then
@@ -576,13 +553,11 @@ end
 local inventoryConnection = RunService.RenderStepped:Connect(updateInventoryCount)
 table.insert(connections, {type = "inventory", connection = inventoryConnection})
 
--- Also update when character respawns
 Player.CharacterAdded:Connect(function()
     task.wait(0.5)
     updateInventoryCount()
 end)
 
--- Initial inventory count
 task.wait(0.5)
 initialInventoryCount = updateInventoryCount()
 
@@ -590,13 +565,32 @@ initialInventoryCount = updateInventoryCount()
 for i, playerBox in ipairs(playerInputs) do
     playerBox.FocusLost:Connect(function()
         script_settings.receivers[i] = playerBox.Text
-        if not script_settings.tradesPerPlayer[script_settings.receivers[i]] then
-            script_settings.tradesPerPlayer[script_settings.receivers[i]] = 0
+        if not script_settings.tradesPerPlayerCount[script_settings.receivers[i]] then
+            script_settings.tradesPerPlayerCount[script_settings.receivers[i]] = 0
         end
-        updateTotalStats()
+        if not script_settings.playerAttempts[script_settings.receivers[i]] then
+            script_settings.playerAttempts[script_settings.receivers[i]] = 0
+        end
+        updateTotalTrades()
         print("Player " .. i .. " updated to: " .. script_settings.receivers[i])
     end)
 end
+
+ItemsBox.FocusLost:Connect(function()
+    local newAmount = tonumber(ItemsBox.Text) or 100
+    script_settings.tradesPerPlayer = newAmount
+    
+    for i = 1, 4 do
+        if playerCounters[i] then
+            local playerName = script_settings.receivers[i]
+            local currentTrades = script_settings.tradesPerPlayerCount[playerName] or 0
+            playerCounters[i].Text = currentTrades .. "/" .. newAmount
+        end
+    end
+    
+    updateTotalTrades()
+    print("Trades per player updated to: " .. newAmount)
+end)
 
 -- ========== ANTI-AFK FUNCTIONS ==========
 local function simulateKeyPress(keyCode)
@@ -624,12 +618,8 @@ local function startAntiAFK()
     updateStatus("Anti-AFK Enabled", Color3.fromRGB(138, 43, 226))
     antiAFKEnabled = true
     
-    -- Anti-AFK loop
     local afkConnection = RunService.Heartbeat:Connect(function()
-        -- Perform anti-AFK actions every 30 seconds
         local currentTime = tick()
-        
-        -- Simulate jump every 30 seconds to prevent AFK kick
         if currentTime % 30 < 0.1 then
             makeCharacterJump()
         end
@@ -637,13 +627,12 @@ local function startAntiAFK()
     
     table.insert(connections, {type = "antiAFK", connection = afkConnection})
     AntiAFKButton.Text = "DISABLE ANTI-AFK"
-    AntiAFKButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60) -- Crimson
+    AntiAFKButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
 end
 
 local function stopAntiAFK()
     antiAFKEnabled = false
     
-    -- Disconnect anti-AFK connections
     for i = #connections, 1, -1 do
         if connections[i].type == "antiAFK" then
             connections[i].connection:Disconnect()
@@ -653,7 +642,7 @@ local function stopAntiAFK()
     
     updateStatus("Anti-AFK Disabled", Color3.fromRGB(255, 100, 100))
     AntiAFKButton.Text = "ENABLE ANTI-AFK"
-    AntiAFKButton.BackgroundColor3 = Color3.fromRGB(138, 43, 226) -- Purple
+    AntiAFKButton.BackgroundColor3 = Color3.fromRGB(138, 43, 226)
 end
 
 -- ========== AUTO-ACCEPT FUNCTIONS ==========
@@ -703,7 +692,6 @@ local function setupAutoAccept()
         end
     end)
     
-    -- Additional connection for receiver to handle received tools
     if not isSending then
         local character = Player.Character or Player.CharacterAdded:Wait()
         
@@ -748,7 +736,6 @@ end
 local function stopAutoAccept()
     autoAcceptEnabled = false
     
-    -- Disconnect all accept-related connections
     for i = #connections, 1, -1 do
         if connections[i].type == "accept" or 
            connections[i].type == "childAdded" or 
@@ -761,37 +748,127 @@ local function stopAutoAccept()
     updateStatus("Auto Accept Disabled", Color3.fromRGB(255, 100, 100))
 end
 
--- ========== ONE-BY-ONE TRADE FUNCTION ==========
-local function incrementTradeCount(receiver)
-    if script_settings.tradesPerPlayer[receiver] then
-        script_settings.tradesPerPlayer[receiver] = script_settings.tradesPerPlayer[receiver] + 1
-    else
-        script_settings.tradesPerPlayer[receiver] = 1
+-- ========== SEQUENTIAL TRADE FUNCTION ==========
+local function moveToNextPlayer()
+    -- Move to the next player in sequence
+    local nextIndex = script_settings.currentReceiverIndex + 1
+    if nextIndex > #script_settings.receivers then
+        nextIndex = 1
     end
-    script_settings.totalTradesGiven = script_settings.totalTradesGiven + 1
+    script_settings.currentReceiverIndex = nextIndex
+    return nextIndex
 end
 
-local function startOneByOneTrade()
+local function getActivePlayer()
+    -- Get the current active player, skipping those who are completed or can't be traded
+    local attempts = 0
+    local maxAttempts = #script_settings.receivers * 3
+    
+    while attempts < maxAttempts do
+        local currentIndex = script_settings.currentReceiverIndex
+        local receiver = script_settings.receivers[currentIndex]
+        
+        if receiver and receiver ~= "" then
+            local tradeCount = script_settings.tradesPerPlayerCount[receiver] or 0
+            
+            if tradeCount >= script_settings.tradesPerPlayer then
+                -- Player already completed, move to next
+                updatePlayerStatus(currentIndex, "Completed", tradeCount)
+                moveToNextPlayer()
+                attempts = attempts + 1
+                continue
+            end
+            
+            -- Check if player is online
+            local playerObj = Players:FindFirstChild(receiver)
+            if not playerObj then
+                -- Player offline, move to next after 3 attempts
+                script_settings.playerAttempts[receiver] = (script_settings.playerAttempts[receiver] or 0) + 1
+                if script_settings.playerAttempts[receiver] >= 3 then
+                    updatePlayerStatus(currentIndex, "Offline", tradeCount)
+                    moveToNextPlayer()
+                    script_settings.playerAttempts[receiver] = 0
+                end
+                attempts = attempts + 1
+                continue
+            end
+            
+            -- Check if player character exists and has trade prompt
+            if not playerObj.Character then
+                attempts = attempts + 1
+                continue
+            end
+            
+            local tradePrompt = playerObj.Character:FindFirstChild("HumanoidRootPart") and 
+                               playerObj.Character.HumanoidRootPart:FindFirstChild("TradePrompt")
+            if not tradePrompt then
+                attempts = attempts + 1
+                continue
+            end
+            
+            -- Player is valid for trading
+            script_settings.playerAttempts[receiver] = 0
+            return receiver, playerObj, currentIndex
+        else
+            -- Invalid username, move to next
+            moveToNextPlayer()
+            attempts = attempts + 1
+        end
+    end
+    
+    return nil
+end
+
+local function incrementTradeCount(receiver)
+    if script_settings.tradesPerPlayerCount[receiver] then
+        script_settings.tradesPerPlayerCount[receiver] = script_settings.tradesPerPlayerCount[receiver] + 1
+    else
+        script_settings.tradesPerPlayerCount[receiver] = 1
+    end
+    
+    -- Update UI for this player
+    for i, rec in ipairs(script_settings.receivers) do
+        if rec == receiver then
+            local tradeCount = script_settings.tradesPerPlayerCount[receiver] or 0
+            if tradeCount >= script_settings.tradesPerPlayer then
+                updatePlayerStatus(i, "Completed", tradeCount)
+            else
+                updatePlayerStatus(i, "Trading", tradeCount)
+            end
+            break
+        end
+    end
+    
+    updateTotalTrades()
+end
+
+local function startSequentialTrade()
     if autoTradeRunning then return end
     
-    updateStatus("One-by-One Trade Started", Color3.fromRGB(65, 105, 225))
+    updateStatus("Sequential Trade Started", Color3.fromRGB(65, 105, 225))
     autoTradeRunning = true
     
     local isTaskRunning = false
-    local lastTradeTime = 0
+    local currentReceiver = nil
+    local currentReceiverObj = nil
+    local currentReceiverIndex = nil
     
     initialInventoryCount = updateInventoryCount()
     
-    -- Update all player statuses initially
+    -- Initialize all statuses
     for i, receiver in ipairs(script_settings.receivers) do
         if receiver and receiver ~= "" then
-            if isPlayerOnline(receiver) then
-                updatePlayerStatus(i, "Waiting")
+            local tradeCount = script_settings.tradesPerPlayerCount[receiver] or 0
+            if tradeCount < script_settings.tradesPerPlayer then
+                local playerObj = Players:FindFirstChild(receiver)
+                if playerObj then
+                    updatePlayerStatus(i, "Waiting", tradeCount)
+                else
+                    updatePlayerStatus(i, "Offline", tradeCount)
+                end
             else
-                updatePlayerStatus(i, "Offline")
+                updatePlayerStatus(i, "Completed", tradeCount)
             end
-        else
-            updatePlayerStatus(i, "Not Set")
         end
     end
     
@@ -807,49 +884,41 @@ local function startOneByOneTrade()
             return
         end
         
-        -- Get current player from rotation
-        local currentIndex = script_settings.currentReceiverIndex
-        local currentReceiver = script_settings.receivers[currentIndex]
+        -- Get active player for trading
+        local receiver, playerObj, playerIndex = getActivePlayer()
+        if not receiver then
+            updateStatus("No valid players to trade with", Color3.fromRGB(255, 100, 100))
+            return
+        end
         
-        -- Find next online player if current is invalid
-        local attempts = 0
-        while attempts < #script_settings.receivers do
-            if not currentReceiver or currentReceiver == "" or not isPlayerOnline(currentReceiver) then
-                if currentReceiver and currentReceiver ~= "" then
-                    updatePlayerStatus(currentIndex, "Offline")
+        -- Check if player changed
+        if currentReceiver ~= receiver then
+            currentReceiver = receiver
+            currentReceiverObj = playerObj
+            currentReceiverIndex = playerIndex
+            
+            -- Update all player statuses
+            for i, rec in ipairs(script_settings.receivers) do
+                if rec == currentReceiver then
+                    local tradeCount = script_settings.tradesPerPlayerCount[rec] or 0
+                    updatePlayerStatus(i, "Trading", tradeCount)
+                elseif rec and rec ~= "" then
+                    local tradeCount = script_settings.tradesPerPlayerCount[rec] or 0
+                    if tradeCount < script_settings.tradesPerPlayer then
+                        updatePlayerStatus(i, "Waiting", tradeCount)
+                    end
                 end
-                script_settings.currentReceiverIndex = getNextPlayer(currentIndex)
-                currentIndex = script_settings.currentReceiverIndex
-                currentReceiver = script_settings.receivers[currentIndex]
-                attempts = attempts + 1
-            else
-                break
             end
+            
+            CurrentPlayerLabel.Text = "Current: " .. currentReceiver .. " | Progress: " .. 
+                                     (script_settings.tradesPerPlayerCount[currentReceiver] or 0) .. "/" .. script_settings.tradesPerPlayer
+            print("Now trading with: " .. currentReceiver)
         end
         
-        if not currentReceiver or currentReceiver == "" then
-            updateStatus("No valid players", Color3.fromRGB(255, 100, 100))
-            return
-        end
-        
-        -- Get player object
-        local currentReceiverObj = Players:FindFirstChild(currentReceiver)
         if not currentReceiverObj or not currentReceiverObj.Character then
-            updatePlayerStatus(currentIndex, "Offline")
+            updateStatus("Waiting for " .. currentReceiver, Color3.fromRGB(255, 215, 0))
             return
         end
-        
-        -- Update status for current player and next player
-        updatePlayerStatus(currentIndex, "Trading Now")
-        
-        local nextIndex = getNextPlayer(currentIndex)
-        local nextReceiver = script_settings.receivers[nextIndex]
-        if nextReceiver and nextReceiver ~= "" and isPlayerOnline(nextReceiver) then
-            updatePlayerStatus(nextIndex, "Next")
-        end
-        
-        -- Update display
-        CurrentPlayerLabel.Text = "Current: " .. currentReceiver .. " | Next: " .. (nextReceiver or "None")
         
         local character = Player.Character
         local humanoid = character and character:FindFirstChildOfClass("Humanoid")
@@ -883,14 +952,12 @@ local function startOneByOneTrade()
         local receiverHumanoid = receiverCharacter:FindFirstChildOfClass("Humanoid")
         if not receiverHumanoid or receiverHumanoid.Health <= 0 then return end
         
-        local distance = (character.HumanoidRootPart.Position - receiverCharacter.HumanoidRootPart.Position).Magnitude
-        if distance > 7 then 
-            updateStatus("Moving closer to " .. currentReceiver, Color3.fromRGB(255, 215, 0))
+        local tradePrompt = receiverCharacter:FindFirstChild("HumanoidRootPart") and 
+                           receiverCharacter.HumanoidRootPart:FindFirstChild("TradePrompt")
+        if not tradePrompt then 
+            updateStatus("No trade prompt on " .. currentReceiver, Color3.fromRGB(255, 215, 0))
             return 
         end
-        
-        local tradePrompt = receiverCharacter:FindFirstChild("HumanoidRootPart") and receiverCharacter.HumanoidRootPart:FindFirstChild("TradePrompt")
-        if not tradePrompt then return end
         
         humanoid:UnequipTools()
         
@@ -913,11 +980,13 @@ local function startOneByOneTrade()
         
         -- Increment trade count for this player
         incrementTradeCount(currentReceiver)
-        updatePlayerCounter(currentIndex, script_settings.tradesPerPlayer[currentReceiver] or 0)
-        updateTotalStats()
         
-        -- Move to next player immediately
-        script_settings.currentReceiverIndex = getNextPlayer(currentIndex)
+        -- Check if this player has reached their limit
+        local tradeCount = script_settings.tradesPerPlayerCount[currentReceiver] or 0
+        if tradeCount >= script_settings.tradesPerPlayer then
+            updateStatus(currentReceiver .. " completed (" .. tradeCount .. "/" .. script_settings.tradesPerPlayer .. ")", Color3.fromRGB(50, 205, 50))
+            moveToNextPlayer()
+        end
         
         -- Equip a random tool for next trade
         local availableTools = {}
@@ -935,11 +1004,9 @@ local function startOneByOneTrade()
         isTaskRunning = false
         
         -- Update status
-        local tradeCount = script_settings.tradesPerPlayer[currentReceiver] or 0
-        updateStatus("Traded with " .. currentReceiver .. " (#" .. tradeCount .. ")", Color3.fromRGB(65, 105, 225))
-        
-        -- Update player status back to Online after trade
-        updatePlayerStatus(currentIndex, "Online")
+        local currentTradeCount = script_settings.tradesPerPlayerCount[currentReceiver] or 0
+        updateStatus("Trading with " .. currentReceiver .. " (" .. currentTradeCount .. "/" .. script_settings.tradesPerPlayer .. ")", Color3.fromRGB(65, 105, 225))
+        CurrentPlayerLabel.Text = "Current: " .. currentReceiver .. " | Progress: " .. currentTradeCount .. "/" .. script_settings.tradesPerPlayer
     end)
     
     table.insert(connections, {type = "trade", connection = tradeConnection})
@@ -948,7 +1015,6 @@ end
 local function stopAutoTrade()
     autoTradeRunning = false
     
-    -- Disconnect trade connections
     for i = #connections, 1, -1 do
         if connections[i].type == "trade" then
             connections[i].connection:Disconnect()
@@ -956,19 +1022,19 @@ local function stopAutoTrade()
         end
     end
     
-    updateStatus("One-by-One Trade Stopped", Color3.fromRGB(255, 100, 100))
-    CurrentPlayerLabel.Text = "Current: None | Next: None"
+    updateStatus("Sequential Trade Stopped", Color3.fromRGB(255, 100, 100))
+    CurrentPlayerLabel.Text = "Current: None | Progress: 0/100"
 end
 
 -- ========== BUTTON FUNCTIONALITY ==========
 AutoTradeButton.MouseButton1Click:Connect(function()
     if not autoTradeRunning then
-        startOneByOneTrade()
-        AutoTradeButton.Text = "STOP ONE-BY-ONE TRADE"
-        AutoTradeButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60) -- Crimson
+        startSequentialTrade()
+        AutoTradeButton.Text = "STOP SEQUENTIAL TRADE"
+        AutoTradeButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
     else
         stopAutoTrade()
-        AutoTradeButton.Text = "START ONE-BY-ONE TRADE"
+        AutoTradeButton.Text = "START SEQUENTIAL TRADE"
         AutoTradeButton.BackgroundColor3 = Color3.fromRGB(65, 105, 225)
     end
 end)
@@ -977,7 +1043,7 @@ AutoAcceptButton.MouseButton1Click:Connect(function()
     if not autoAcceptEnabled then
         setupAutoAccept()
         AutoAcceptButton.Text = "STOP AUTO ACCEPT"
-        AutoAcceptButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60) -- Crimson
+        AutoAcceptButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
     else
         stopAutoAccept()
         AutoAcceptButton.Text = "START AUTO ACCEPT"
@@ -1029,34 +1095,30 @@ local function setupTextBoxFocus(textbox)
     end)
 end
 
--- Setup focus effects for all input boxes
 for _, playerBox in ipairs(playerInputs) do
     setupTextBoxFocus(playerBox)
 end
+setupTextBoxFocus(ItemsBox)
 
 -- Initialize player status displays
 for i, receiver in ipairs(script_settings.receivers) do
     if receiver and receiver ~= "" then
-        if isPlayerOnline(receiver) then
-            updatePlayerStatus(i, "Waiting")
-        else
-            updatePlayerStatus(i, "Offline")
-        end
-        updatePlayerCounter(i, script_settings.tradesPerPlayer[receiver] or 0)
+        updatePlayerStatus(i, "Waiting", script_settings.tradesPerPlayerCount[receiver] or 0)
     else
-        updatePlayerStatus(i, "Not Set")
-        updatePlayerCounter(i, 0)
+        updatePlayerStatus(i, "Not Set", 0)
     end
 end
 
-updateTotalStats()
+updateTotalTrades()
 
 -- Initial Status
 updateStatus("Ready to start", Color3.fromRGB(200, 200, 200))
 
-print("One-by-One Auto Trade GUI Loaded!")
+print("Sequential Auto Trade GUI Loaded!")
 print("Features:")
-print("- Trade with players in rotation: 1 → 2 → 3 → 4 → 1 → 2...")
-print("- 1 trade per player, then move to next")
+print("- Trade 100 items with Player 1 FIRST")
+print("- Then move to Player 2 for 100 items")
+print("- Then Player 3, then Player 4")
+print("- Skips players after 3 failed attempts")
+print("- No distance check")
 print("- Real-time progress tracking")
-print("- Counts total cycles completed")
