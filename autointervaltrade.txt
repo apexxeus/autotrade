@@ -12,7 +12,11 @@ local script_settings = {
     currentReceiverIndex = 1, -- Current player in sequence
     tradesPerPlayerCount = {}, -- Track trades per player
     totalTradesGiven = 0, -- Track total trades across all players
-    playerAttempts = {} -- Track failed attempts per player
+    playerAttempts = {}, -- Track failed attempts per player
+    lastTradeTime = 0, -- Track when last trade was attempted
+    tradeCooldown = 5, -- 5 second cooldown between trades
+    waitingForTradeComplete = false, -- Track if we're waiting for trade to complete
+    lastInventoryCount = 0 -- Track last inventory count
 };
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage");
@@ -75,7 +79,7 @@ Title.Name = "Title"
 Title.Size = UDim2.new(0.7, -10, 1, 0)
 Title.Position = UDim2.new(0, 10, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "Sequential 100-Item Trade"
+Title.Text = "Accurate Sequential Trade"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 18
@@ -549,6 +553,27 @@ local function updateInventoryCount()
     return count
 end
 
+-- Track inventory changes to detect successful trades
+local function checkTradeSuccess()
+    if not script_settings.waitingForTradeComplete then return false end
+    
+    local currentInventory = updateInventoryCount()
+    
+    -- If inventory decreased by 1, trade was successful
+    if currentInventory < script_settings.lastInventoryCount then
+        script_settings.waitingForTradeComplete = false
+        return true
+    end
+    
+    -- Check if too much time has passed (trade failed)
+    if tick() - script_settings.lastTradeTime > 10 then -- 10 second timeout
+        script_settings.waitingForTradeComplete = false
+        return false
+    end
+    
+    return nil -- Still waiting
+end
+
 -- Update inventory counter continuously
 local inventoryConnection = RunService.RenderStepped:Connect(updateInventoryCount)
 table.insert(connections, {type = "inventory", connection = inventoryConnection})
@@ -750,7 +775,6 @@ end
 
 -- ========== SEQUENTIAL TRADE FUNCTION ==========
 local function moveToNextPlayer()
-    -- Move to the next player in sequence
     local nextIndex = script_settings.currentReceiverIndex + 1
     if nextIndex > #script_settings.receivers then
         nextIndex = 1
@@ -760,7 +784,6 @@ local function moveToNextPlayer()
 end
 
 local function getActivePlayer()
-    -- Get the current active player, skipping those who are completed or can't be traded
     local attempts = 0
     local maxAttempts = #script_settings.receivers * 3
     
@@ -772,17 +795,14 @@ local function getActivePlayer()
             local tradeCount = script_settings.tradesPerPlayerCount[receiver] or 0
             
             if tradeCount >= script_settings.tradesPerPlayer then
-                -- Player already completed, move to next
                 updatePlayerStatus(currentIndex, "Completed", tradeCount)
                 moveToNextPlayer()
                 attempts = attempts + 1
                 continue
             end
             
-            -- Check if player is online
             local playerObj = Players:FindFirstChild(receiver)
             if not playerObj then
-                -- Player offline, move to next after 3 attempts
                 script_settings.playerAttempts[receiver] = (script_settings.playerAttempts[receiver] or 0) + 1
                 if script_settings.playerAttempts[receiver] >= 3 then
                     updatePlayerStatus(currentIndex, "Offline", tradeCount)
@@ -793,7 +813,6 @@ local function getActivePlayer()
                 continue
             end
             
-            -- Check if player character exists and has trade prompt
             if not playerObj.Character then
                 attempts = attempts + 1
                 continue
@@ -806,11 +825,9 @@ local function getActivePlayer()
                 continue
             end
             
-            -- Player is valid for trading
             script_settings.playerAttempts[receiver] = 0
             return receiver, playerObj, currentIndex
         else
-            -- Invalid username, move to next
             moveToNextPlayer()
             attempts = attempts + 1
         end
@@ -826,7 +843,6 @@ local function incrementTradeCount(receiver)
         script_settings.tradesPerPlayerCount[receiver] = 1
     end
     
-    -- Update UI for this player
     for i, rec in ipairs(script_settings.receivers) do
         if rec == receiver then
             local tradeCount = script_settings.tradesPerPlayerCount[receiver] or 0
@@ -848,12 +864,8 @@ local function startSequentialTrade()
     updateStatus("Sequential Trade Started", Color3.fromRGB(65, 105, 225))
     autoTradeRunning = true
     
-    local isTaskRunning = false
-    local currentReceiver = nil
-    local currentReceiverObj = nil
-    local currentReceiverIndex = nil
-    
-    initialInventoryCount = updateInventoryCount()
+    script_settings.waitingForTradeComplete = false
+    script_settings.lastTradeTime = 0
     
     -- Initialize all statuses
     for i, receiver in ipairs(script_settings.receivers) do
@@ -873,8 +885,39 @@ local function startSequentialTrade()
     end
     
     local tradeConnection = RunService.Heartbeat:Connect(function()
-        if isTaskRunning then return end
-        if not autoTradeRunning then return end
+        -- Check cooldown
+        local currentTime = tick()
+        if script_settings.waitingForTradeComplete then
+            -- Check if trade completed
+            local tradeSuccess = checkTradeSuccess()
+            if tradeSuccess == true then
+                -- Trade was successful, increment counter
+                if script_settings.currentTradeReceiver then
+                    incrementTradeCount(script_settings.currentTradeReceiver)
+                    
+                    -- Check if this player has reached their limit
+                    local tradeCount = script_settings.tradesPerPlayerCount[script_settings.currentTradeReceiver] or 0
+                    if tradeCount >= script_settings.tradesPerPlayer then
+                        updateStatus(script_settings.currentTradeReceiver .. " completed (" .. tradeCount .. "/" .. script_settings.tradesPerPlayer .. ")", Color3.fromRGB(50, 205, 50))
+                        moveToNextPlayer()
+                    end
+                end
+                script_settings.waitingForTradeComplete = false
+                script_settings.currentTradeReceiver = nil
+            elseif tradeSuccess == false then
+                -- Trade failed
+                updateStatus("Trade failed with " .. (script_settings.currentTradeReceiver or "unknown"), Color3.fromRGB(255, 100, 100))
+                script_settings.waitingForTradeComplete = false
+                script_settings.currentTradeReceiver = nil
+            end
+            return
+        end
+        
+        if currentTime - script_settings.lastTradeTime < script_settings.tradeCooldown then
+            local timeLeft = script_settings.tradeCooldown - (currentTime - script_settings.lastTradeTime)
+            updateStatus("Cooldown: " .. math.floor(timeLeft) .. "s", Color3.fromRGB(255, 215, 0))
+            return
+        end
         
         -- Check if we have items to trade
         local currentInventory = updateInventoryCount()
@@ -892,14 +935,13 @@ local function startSequentialTrade()
         end
         
         -- Check if player changed
-        if currentReceiver ~= receiver then
-            currentReceiver = receiver
-            currentReceiverObj = playerObj
-            currentReceiverIndex = playerIndex
+        if script_settings.currentReceiver ~= receiver then
+            script_settings.currentReceiver = receiver
+            script_settings.currentReceiverObj = playerObj
+            script_settings.currentReceiverIndex = playerIndex
             
-            -- Update all player statuses
             for i, rec in ipairs(script_settings.receivers) do
-                if rec == currentReceiver then
+                if rec == script_settings.currentReceiver then
                     local tradeCount = script_settings.tradesPerPlayerCount[rec] or 0
                     updatePlayerStatus(i, "Trading", tradeCount)
                 elseif rec and rec ~= "" then
@@ -910,13 +952,13 @@ local function startSequentialTrade()
                 end
             end
             
-            CurrentPlayerLabel.Text = "Current: " .. currentReceiver .. " | Progress: " .. 
-                                     (script_settings.tradesPerPlayerCount[currentReceiver] or 0) .. "/" .. script_settings.tradesPerPlayer
-            print("Now trading with: " .. currentReceiver)
+            CurrentPlayerLabel.Text = "Current: " .. script_settings.currentReceiver .. " | Progress: " .. 
+                                     (script_settings.tradesPerPlayerCount[script_settings.currentReceiver] or 0) .. "/" .. script_settings.tradesPerPlayer
+            print("Now trading with: " .. script_settings.currentReceiver)
         end
         
-        if not currentReceiverObj or not currentReceiverObj.Character then
-            updateStatus("Waiting for " .. currentReceiver, Color3.fromRGB(255, 215, 0))
+        if not script_settings.currentReceiverObj or not script_settings.currentReceiverObj.Character then
+            updateStatus("Waiting for " .. script_settings.currentReceiver, Color3.fromRGB(255, 215, 0))
             return
         end
         
@@ -947,7 +989,7 @@ local function startSequentialTrade()
             return
         end
         
-        local receiverCharacter = currentReceiverObj.Character
+        local receiverCharacter = script_settings.currentReceiverObj.Character
         if not receiverCharacter then return end
         local receiverHumanoid = receiverCharacter:FindFirstChildOfClass("Humanoid")
         if not receiverHumanoid or receiverHumanoid.Health <= 0 then return end
@@ -955,13 +997,17 @@ local function startSequentialTrade()
         local tradePrompt = receiverCharacter:FindFirstChild("HumanoidRootPart") and 
                            receiverCharacter.HumanoidRootPart:FindFirstChild("TradePrompt")
         if not tradePrompt then 
-            updateStatus("No trade prompt on " .. currentReceiver, Color3.fromRGB(255, 215, 0))
+            updateStatus("No trade prompt on " .. script_settings.currentReceiver, Color3.fromRGB(255, 215, 0))
             return 
         end
         
-        humanoid:UnequipTools()
+        -- Record inventory before trade
+        script_settings.lastInventoryCount = updateInventoryCount()
+        script_settings.lastTradeTime = currentTime
+        script_settings.waitingForTradeComplete = true
+        script_settings.currentTradeReceiver = script_settings.currentReceiver
         
-        isTaskRunning = true
+        humanoid:UnequipTools()
         task.wait(0.5)
         
         humanoid:EquipTool(brainrotTool)
@@ -970,43 +1016,32 @@ local function startSequentialTrade()
         local equipped = character:FindFirstChildOfClass("Tool")
         if not equipped then 
             print("Failed to equip") 
-            isTaskRunning = false
+            script_settings.waitingForTradeComplete = false
             return 
         end
         
         task.wait(1)
         fireproximityprompt(tradePrompt)
-        task.wait(1)
         
-        -- Increment trade count for this player
-        incrementTradeCount(currentReceiver)
+        updateStatus("Trading with " .. script_settings.currentReceiver + " (waiting for confirmation)...", Color3.fromRGB(65, 105, 225))
+        CurrentPlayerLabel.Text = "Current: " .. script_settings.currentReceiver .. " | Progress: " .. 
+                                 (script_settings.tradesPerPlayerCount[script_settings.currentReceiver] or 0) .. "/" .. script_settings.tradesPerPlayer
         
-        -- Check if this player has reached their limit
-        local tradeCount = script_settings.tradesPerPlayerCount[currentReceiver] or 0
-        if tradeCount >= script_settings.tradesPerPlayer then
-            updateStatus(currentReceiver .. " completed (" .. tradeCount .. "/" .. script_settings.tradesPerPlayer .. ")", Color3.fromRGB(50, 205, 50))
-            moveToNextPlayer()
-        end
-        
-        -- Equip a random tool for next trade
-        local availableTools = {}
-        for _, tool in ipairs(Backpack:GetChildren()) do
-            if tool:IsA("Tool") and not string.find(tool.Name:lower(), "basic bat") then
-                table.insert(availableTools, tool)
+        -- Equip a random tool for next trade (after a delay to not interfere with current trade)
+        task.spawn(function()
+            task.wait(2)
+            local availableTools = {}
+            for _, tool in ipairs(Backpack:GetChildren()) do
+                if tool:IsA("Tool") and not string.find(tool.Name:lower(), "basic bat") then
+                    table.insert(availableTools, tool)
+                end
             end
-        end
-        
-        if #availableTools > 0 then
-            local randomTool = availableTools[math.random(1, #availableTools)]
-            humanoid:EquipTool(randomTool)
-        end
-        
-        isTaskRunning = false
-        
-        -- Update status
-        local currentTradeCount = script_settings.tradesPerPlayerCount[currentReceiver] or 0
-        updateStatus("Trading with " .. currentReceiver .. " (" .. currentTradeCount .. "/" .. script_settings.tradesPerPlayer .. ")", Color3.fromRGB(65, 105, 225))
-        CurrentPlayerLabel.Text = "Current: " .. currentReceiver .. " | Progress: " .. currentTradeCount .. "/" .. script_settings.tradesPerPlayer
+            
+            if #availableTools > 0 then
+                local randomTool = availableTools[math.random(1, #availableTools)]
+                humanoid:EquipTool(randomTool)
+            end
+        end)
     end)
     
     table.insert(connections, {type = "trade", connection = tradeConnection})
@@ -1014,6 +1049,7 @@ end
 
 local function stopAutoTrade()
     autoTradeRunning = false
+    script_settings.waitingForTradeComplete = false
     
     for i = #connections, 1, -1 do
         if connections[i].type == "trade" then
@@ -1114,11 +1150,11 @@ updateTotalTrades()
 -- Initial Status
 updateStatus("Ready to start", Color3.fromRGB(200, 200, 200))
 
-print("Sequential Auto Trade GUI Loaded!")
+print("Accurate Sequential Trade GUI Loaded!")
 print("Features:")
 print("- Trade 100 items with Player 1 FIRST")
 print("- Then move to Player 2 for 100 items")
 print("- Then Player 3, then Player 4")
-print("- Skips players after 3 failed attempts")
-print("- No distance check")
+print("- ACCURATE COUNTERS: Only counts when inventory decreases")
+print("- 5-second cooldown between trades")
 print("- Real-time progress tracking")
