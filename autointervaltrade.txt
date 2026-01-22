@@ -1,10 +1,10 @@
 -- First part: Your original trading script
 local script_settings = {
     receivers = {  -- Now supports multiple receivers
-        "Rico",   -- Player 1
-        "Pogi",     -- Player 2  
-        "So",     -- Player 3
-        "Much"      -- Player 4
+        "jam187312",   -- Player 1
+        "player2",     -- Player 2  
+        "player3",     -- Player 3
+        "player4"      -- Player 4
     },
     sender = "kill72472", -- username
     brainrot = "Electric Esok Sekolah", -- base name
@@ -80,7 +80,7 @@ Title.Name = "Title"
 Title.Size = UDim2.new(0.7, -10, 1, 0)
 Title.Position = UDim2.new(0, 10, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "Auto Trade"
+Title.Text = "Smart Sequential Trade"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 18
@@ -92,7 +92,7 @@ CreditsLabel.Name = "CreditsLabel"
 CreditsLabel.Size = UDim2.new(0.3, -10, 1, 0)
 CreditsLabel.Position = UDim2.new(0.7, 0, 0, 0)
 CreditsLabel.BackgroundTransparency = 1
-CreditsLabel.Text = "Made by Apexx"
+CreditsLabel.Text = "Made by Ricopogi"
 CreditsLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
 CreditsLabel.Font = Enum.Font.Gotham
 CreditsLabel.TextSize = 12
@@ -556,28 +556,20 @@ local function updateInventoryCount()
     return count
 end
 
--- Function to check if receiver's inventory is full (100 items)
--- AND the player has received their 100 trades
-local function shouldSkipReceiver(receiver, playerObj)
+-- Function to count ONLY brainrot items in receiver's inventory (exclude Basic Bat)
+local function countReceiverBrainrotItems(playerObj)
     if not playerObj or not playerObj.Character then
-        return false, "offline"
+        return 0
     end
     
-    -- First check if player has received their 100 trades
-    local tradeCount = script_settings.tradesPerPlayerCount[receiver] or 0
-    if tradeCount >= script_settings.tradesPerPlayer then
-        return true, "completed"
-    end
-    
-    -- Now check inventory count
-    local receiverCount = 0
+    local brainrotCount = 0
     
     -- Check receiver's backpack
     local receiverBackpack = playerObj:FindFirstChild("Backpack")
     if receiverBackpack then
         for _, item in ipairs(receiverBackpack:GetChildren()) do
-            if item:IsA("Tool") then
-                receiverCount = receiverCount + 1
+            if item:IsA("Tool") and string.find(item.Name, script_settings.brainrot) then
+                brainrotCount = brainrotCount + 1
             end
         end
     end
@@ -586,15 +578,29 @@ local function shouldSkipReceiver(receiver, playerObj)
     local receiverCharacter = playerObj.Character
     if receiverCharacter then
         for _, item in ipairs(receiverCharacter:GetChildren()) do
-            if item:IsA("Tool") then
-                receiverCount = receiverCount + 1
+            if item:IsA("Tool") and string.find(item.Name, script_settings.brainrot) then
+                brainrotCount = brainrotCount + 1
             end
         end
     end
     
-    -- Skip if receiver has 100 items AND has received less than 100 trades from us
-    if receiverCount >= 100 then
-        return true, "inventory_full"
+    return brainrotCount
+end
+
+-- Check if we should skip receiver (has received 100 trades OR has 100+ brainrot items)
+local function shouldSkipReceiver(receiver, playerObj)
+    -- First check if player has received their 100 trades from us
+    local tradeCount = script_settings.tradesPerPlayerCount[receiver] or 0
+    if tradeCount >= script_settings.tradesPerPlayer then
+        return true, "completed"
+    end
+    
+    -- Then check if player's inventory is full (100 brainrot items)
+    if playerObj then
+        local brainrotCount = countReceiverBrainrotItems(playerObj)
+        if brainrotCount >= 100 then
+            return true, "inventory_full"
+        end
     end
     
     return false, "ok"
@@ -841,7 +847,7 @@ local function getActivePlayer()
         if receiver and receiver ~= "" then
             local tradeCount = script_settings.tradesPerPlayerCount[receiver] or 0
             
-            -- Check if player has already received 100 trades from us
+            -- First check if player has received their 100 trades from us
             if tradeCount >= script_settings.tradesPerPlayer then
                 updatePlayerStatus(currentIndex, "Completed", tradeCount)
                 moveToNextPlayer()
@@ -866,12 +872,12 @@ local function getActivePlayer()
                 continue
             end
             
-            -- Check if we should skip this receiver (has 100 items or has received 100 trades)
+            -- Check if we should skip this receiver (has received 100 trades OR has 100+ brainrot items)
             local shouldSkip, skipReason = shouldSkipReceiver(receiver, playerObj)
             if shouldSkip then
                 if skipReason == "inventory_full" then
                     updatePlayerStatus(currentIndex, "Inventory Full", tradeCount)
-                    updateStatus(receiver .. " has 100 items (max reached)", Color3.fromRGB(255, 140, 0))
+                    updateStatus(receiver .. " has 100 brainrot items (max reached)", Color3.fromRGB(255, 140, 0))
                     moveToNextPlayer()
                 elseif skipReason == "completed" then
                     updatePlayerStatus(currentIndex, "Completed", tradeCount)
@@ -937,9 +943,9 @@ local function startSmartTrade()
             if tradeCount < script_settings.tradesPerPlayer then
                 local playerObj = Players:FindFirstChild(receiver)
                 if playerObj then
-                    -- Check if receiver inventory is full on startup (100 items)
-                    local shouldSkip, skipReason = shouldSkipReceiver(receiver, playerObj)
-                    if shouldSkip and skipReason == "inventory_full" then
+                    -- Check if receiver inventory is full on startup
+                    local brainrotCount = countReceiverBrainrotItems(playerObj)
+                    if brainrotCount >= 100 then
                         updatePlayerStatus(i, "Inventory Full", tradeCount)
                     else
                         updatePlayerStatus(i, "Waiting", tradeCount)
@@ -1035,7 +1041,7 @@ local function startSmartTrade()
         local shouldSkip, skipReason = shouldSkipReceiver(receiver, script_settings.currentReceiverObj)
         if shouldSkip then
             if skipReason == "inventory_full" then
-                updateStatus(receiver .. " has 100 items (max reached)", Color3.fromRGB(255, 140, 0))
+                updateStatus(receiver .. " has 100 brainrot items (max reached)", Color3.fromRGB(255, 140, 0))
                 updatePlayerStatus(script_settings.currentReceiverIndex, "Inventory Full", script_settings.tradesPerPlayerCount[script_settings.currentReceiver] or 0)
             elseif skipReason == "completed" then
                 updatePlayerStatus(script_settings.currentReceiverIndex, "Completed", script_settings.tradesPerPlayerCount[script_settings.currentReceiver] or 0)
@@ -1237,7 +1243,8 @@ print("Features:")
 print("- Trade 100 items with Player 1 FIRST")
 print("- Then move to Player 2 for 100 items")
 print("- Then Player 3, then Player 4")
-print("- Will trade until player has exactly 100 items AND has received 100 trades from us")
-print("- ACCURATE COUNTERS: Only counts when inventory decreases")
+print("- Skips player when they have 100 brainrot items (excludes Basic Bat)")
+print("- Also skips when player has received 100 trades from us")
+print("- ACCURATE COUNTERS: Only counts when your inventory decreases")
 print("- 5-second cooldown between trades")
 print("- Real-time progress tracking")
