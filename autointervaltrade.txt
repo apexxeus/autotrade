@@ -1,10 +1,10 @@
 -- First part: Your original trading script
 local script_settings = {
     receivers = {  -- Now supports multiple receivers
-        "jam187312",   -- Player 1
-        "player2",     -- Player 2  
-        "player3",     -- Player 3
-        "player4"      -- Player 4
+        "Rico",   -- Player 1
+        "Pogi",     -- Player 2  
+        "So",     -- Player 3
+        "Much"      -- Player 4
     },
     sender = "kill72472", -- username
     brainrot = "Electric Esok Sekolah", -- base name
@@ -80,7 +80,7 @@ Title.Name = "Title"
 Title.Size = UDim2.new(0.7, -10, 1, 0)
 Title.Position = UDim2.new(0, 10, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "Smart Sequential Trade"
+Title.Text = "Auto Trade"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 18
@@ -92,7 +92,7 @@ CreditsLabel.Name = "CreditsLabel"
 CreditsLabel.Size = UDim2.new(0.3, -10, 1, 0)
 CreditsLabel.Position = UDim2.new(0.7, 0, 0, 0)
 CreditsLabel.BackgroundTransparency = 1
-CreditsLabel.Text = "Made by Ricopogi"
+CreditsLabel.Text = "Made by Apexx"
 CreditsLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
 CreditsLabel.Font = Enum.Font.Gotham
 CreditsLabel.TextSize = 12
