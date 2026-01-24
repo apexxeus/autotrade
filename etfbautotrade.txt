@@ -1,0 +1,893 @@
+-- First part: Your original trading script
+local script_settings = {
+    receiver = "jam187312", -- username
+    sender = "kill72472", -- username
+    brainrot = "Hacker Esok Sekolah", -- base name
+    toGive = 0, -- set to 0 to give all (since all your inventory is this item)
+};
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage");
+local RunService = game:GetService("RunService");
+local Players = game:GetService("Players");
+local Player = Players.LocalPlayer;
+local Backpack = Player:WaitForChild("Backpack");
+local isSending = Player.Name == script_settings.sender;
+local RemoteEvents = ReplicatedStorage:WaitForChild("RemoteEvents");
+local PromptTradeEvent = RemoteEvents:WaitForChild("PromptTrade");
+local PromptGiftEvent = RemoteEvents:WaitForChild("PromptGift");
+local CompleteTradeEvent = RemoteEvents:WaitForChild("CompleteTrade");
+local CompleteGiftEvent = RemoteEvents:WaitForChild("CompleteGift");
+
+-- GUI Setup
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+-- Create ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AutoTradeGUI"
+ScreenGui.Parent = Player.PlayerGui
+ScreenGui.ResetOnSpawn = false
+
+-- Main Frame
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 400, 0, 430) -- Reduced height
+MainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+
+-- Corner Radius
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = MainFrame
+
+-- Title Bar
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 40)
+TitleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+TitleBar.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 12)
+TitleCorner.Parent = TitleBar
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(0.7, -10, 1, 0)
+Title.Position = UDim2.new(0, 10, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "Anti RTBR HUB"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 18
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TitleBar
+
+-- Credits beside title
+local CreditsLabel = Instance.new("TextLabel")
+CreditsLabel.Name = "CreditsLabel"
+CreditsLabel.Size = UDim2.new(0.3, -10, 1, 0)
+CreditsLabel.Position = UDim2.new(0.7, 0, 0, 0)
+CreditsLabel.BackgroundTransparency = 1
+CreditsLabel.Text = "Made by Ricopogi"
+CreditsLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+CreditsLabel.Font = Enum.Font.Gotham
+CreditsLabel.TextSize = 12
+CreditsLabel.TextXAlignment = Enum.TextXAlignment.Right
+CreditsLabel.Parent = TitleBar
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Name = "CloseButton"
+CloseButton.Size = UDim2.new(0, 30, 0, 30)
+CloseButton.Position = UDim2.new(1, -35, 0.5, -15)
+CloseButton.AnchorPoint = Vector2.new(0.5, 0.5)
+CloseButton.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+CloseButton.Text = "X"
+CloseButton.TextColor3 = Color3.fromRGB(255, 100, 100)
+CloseButton.Font = Enum.Font.GothamBold
+CloseButton.TextSize = 16
+CloseButton.Parent = TitleBar
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 6)
+CloseCorner.Parent = CloseButton
+
+-- Content Frame
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Name = "ContentFrame"
+ContentFrame.Size = UDim2.new(1, -20, 1, -60)
+ContentFrame.Position = UDim2.new(0, 10, 0, 50)
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.Parent = MainFrame
+
+-- Inventory Counter Section
+local InventorySection = Instance.new("Frame")
+InventorySection.Name = "InventorySection"
+InventorySection.Size = UDim2.new(1, 0, 0, 60)
+InventorySection.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+InventorySection.Parent = ContentFrame
+
+local InventoryCorner = Instance.new("UICorner")
+InventoryCorner.CornerRadius = UDim.new(0, 8)
+InventoryCorner.Parent = InventorySection
+
+local InventoryTitle = Instance.new("TextLabel")
+InventoryTitle.Name = "InventoryTitle"
+InventoryTitle.Size = UDim2.new(1, -20, 0, 25)
+InventoryTitle.Position = UDim2.new(0, 10, 0, 5)
+InventoryTitle.BackgroundTransparency = 1
+InventoryTitle.Text = "INVENTORY COUNT"
+InventoryTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+InventoryTitle.Font = Enum.Font.GothamBold
+InventoryTitle.TextSize = 16
+InventoryTitle.TextXAlignment = Enum.TextXAlignment.Center
+InventoryTitle.Parent = InventorySection
+
+local InventoryLabel = Instance.new("TextLabel")
+InventoryLabel.Name = "InventoryLabel"
+InventoryLabel.Size = UDim2.new(1, -20, 0, 25)
+InventoryLabel.Position = UDim2.new(0, 10, 0, 30)
+InventoryLabel.BackgroundTransparency = 1
+InventoryLabel.Text = "Items: 0"
+InventoryLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+InventoryLabel.Font = Enum.Font.GothamBold
+InventoryLabel.TextSize = 20
+InventoryLabel.TextXAlignment = Enum.TextXAlignment.Center
+InventoryLabel.Parent = InventorySection
+
+-- Configurations Section
+local ConfigSection = Instance.new("Frame")
+ConfigSection.Name = "ConfigSection"
+ConfigSection.Size = UDim2.new(1, 0, 0, 130)
+ConfigSection.Position = UDim2.new(0, 0, 0, 70)
+ConfigSection.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+ConfigSection.Parent = ContentFrame
+
+local ConfigCorner = Instance.new("UICorner")
+ConfigCorner.CornerRadius = UDim.new(0, 8)
+ConfigCorner.Parent = ConfigSection
+
+local ConfigTitle = Instance.new("TextLabel")
+ConfigTitle.Name = "ConfigTitle"
+ConfigTitle.Size = UDim2.new(1, -20, 0, 30)
+ConfigTitle.Position = UDim2.new(0, 10, 0, 0)
+ConfigTitle.BackgroundTransparency = 1
+ConfigTitle.Text = "Configuration"
+ConfigTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+ConfigTitle.Font = Enum.Font.GothamBold
+ConfigTitle.TextSize = 16
+ConfigTitle.TextXAlignment = Enum.TextXAlignment.Left
+ConfigTitle.Parent = ConfigSection
+
+-- Receiver Username Input
+local ReceiverLabel = Instance.new("TextLabel")
+ReceiverLabel.Name = "ReceiverLabel"
+ReceiverLabel.Size = UDim2.new(0.5, -5, 0, 25)
+ReceiverLabel.Position = UDim2.new(0, 10, 0, 35)
+ReceiverLabel.BackgroundTransparency = 1
+ReceiverLabel.Text = "Receiver Username:"
+ReceiverLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+ReceiverLabel.Font = Enum.Font.Gotham
+ReceiverLabel.TextSize = 14
+ReceiverLabel.TextXAlignment = Enum.TextXAlignment.Left
+ReceiverLabel.Parent = ConfigSection
+
+local ReceiverBox = Instance.new("TextBox")
+ReceiverBox.Name = "ReceiverBox"
+ReceiverBox.Size = UDim2.new(0.5, -15, 0, 30)
+ReceiverBox.Position = UDim2.new(0.5, 0, 0, 35)
+ReceiverBox.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+ReceiverBox.BorderSizePixel = 0
+ReceiverBox.Text = script_settings.receiver
+ReceiverBox.PlaceholderText = "Enter username..."
+ReceiverBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+ReceiverBox.Font = Enum.Font.Gotham
+ReceiverBox.TextSize = 14
+ReceiverBox.Parent = ConfigSection
+
+local ReceiverCorner = Instance.new("UICorner")
+ReceiverCorner.CornerRadius = UDim.new(0, 6)
+ReceiverCorner.Parent = ReceiverBox
+
+-- Amount Input
+local AmountLabel = Instance.new("TextLabel")
+AmountLabel.Name = "AmountLabel"
+AmountLabel.Size = UDim2.new(0.5, -5, 0, 25)
+AmountLabel.Position = UDim2.new(0, 10, 0, 70)
+AmountLabel.BackgroundTransparency = 1
+AmountLabel.Text = "Amount to Give (0 = all):"
+AmountLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+AmountLabel.Font = Enum.Font.Gotham
+AmountLabel.TextSize = 14
+AmountLabel.TextXAlignment = Enum.TextXAlignment.Left
+AmountLabel.Parent = ConfigSection
+
+local AmountBox = Instance.new("TextBox")
+AmountBox.Name = "AmountBox"
+AmountBox.Size = UDim2.new(0.5, -15, 0, 30)
+AmountBox.Position = UDim2.new(0.5, 0, 0, 70)
+AmountBox.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+AmountBox.BorderSizePixel = 0
+AmountBox.Text = tostring(script_settings.toGive)
+AmountBox.PlaceholderText = "Enter amount..."
+AmountBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+AmountBox.Font = Enum.Font.Gotham
+AmountBox.TextSize = 14
+AmountBox.Parent = ConfigSection
+
+local AmountCorner = Instance.new("UICorner")
+AmountCorner.CornerRadius = UDim.new(0, 6)
+AmountCorner.Parent = AmountBox
+
+-- Controls Section
+local ControlsSection = Instance.new("Frame")
+ControlsSection.Name = "ControlsSection"
+ControlsSection.Size = UDim2.new(1, 0, 0, 180)
+ControlsSection.Position = UDim2.new(0, 0, 0, 210)
+ControlsSection.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+ControlsSection.Parent = ContentFrame
+
+local ControlsCorner = Instance.new("UICorner")
+ControlsCorner.CornerRadius = UDim.new(0, 8)
+ControlsCorner.Parent = ControlsSection
+
+local ControlsTitle = Instance.new("TextLabel")
+ControlsTitle.Name = "ControlsTitle"
+ControlsTitle.Size = UDim2.new(1, -20, 0, 30)
+ControlsTitle.Position = UDim2.new(0, 10, 0, 0)
+ControlsTitle.BackgroundTransparency = 1
+ControlsTitle.Text = "Controls"
+ControlsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+ControlsTitle.Font = Enum.Font.GothamBold
+ControlsTitle.TextSize = 16
+ControlsTitle.TextXAlignment = Enum.TextXAlignment.Left
+ControlsTitle.Parent = ControlsSection
+
+-- Auto Trade Button
+local AutoTradeButton = Instance.new("TextButton")
+AutoTradeButton.Name = "AutoTradeButton"
+AutoTradeButton.Size = UDim2.new(1, -20, 0, 45)
+AutoTradeButton.Position = UDim2.new(0, 10, 0, 40)
+AutoTradeButton.BackgroundColor3 = Color3.fromRGB(65, 105, 225) -- Royal Blue
+AutoTradeButton.Text = "START AUTO TRADE"
+AutoTradeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoTradeButton.Font = Enum.Font.GothamBold
+AutoTradeButton.TextSize = 16
+AutoTradeButton.Parent = ControlsSection
+
+local AutoTradeCorner = Instance.new("UICorner")
+AutoTradeCorner.CornerRadius = UDim.new(0, 8)
+AutoTradeCorner.Parent = AutoTradeButton
+
+-- Auto Accept Button
+local AutoAcceptButton = Instance.new("TextButton")
+AutoAcceptButton.Name = "AutoAcceptButton"
+AutoAcceptButton.Size = UDim2.new(1, -20, 0, 45)
+AutoAcceptButton.Position = UDim2.new(0, 10, 0, 95)
+AutoAcceptButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50) -- Lime Green
+AutoAcceptButton.Text = "START AUTO ACCEPT"
+AutoAcceptButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+AutoAcceptButton.Font = Enum.Font.GothamBold
+AutoAcceptButton.TextSize = 16
+AutoAcceptButton.Parent = ControlsSection
+
+local AutoAcceptCorner = Instance.new("UICorner")
+AutoAcceptCorner.CornerRadius = UDim.new(0, 8)
+AutoAcceptCorner.Parent = AutoAcceptButton
+
+-- Status Display
+local StatusFrame = Instance.new("Frame")
+StatusFrame.Name = "StatusFrame"
+StatusFrame.Size = UDim2.new(1, -20, 0, 40)
+StatusFrame.Position = UDim2.new(0, 10, 0, 150)
+StatusFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+StatusFrame.Parent = ControlsSection
+
+local StatusCorner = Instance.new("UICorner")
+StatusCorner.CornerRadius = UDim.new(0, 8)
+StatusCorner.Parent = StatusFrame
+
+local StatusLabel = Instance.new("TextLabel")
+StatusLabel.Name = "StatusLabel"
+StatusLabel.Size = UDim2.new(1, -20, 1, 0)
+StatusLabel.Position = UDim2.new(0, 10, 0, 0)
+StatusLabel.BackgroundTransparency = 1
+StatusLabel.Text = "Status: Ready"
+StatusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+StatusLabel.Font = Enum.Font.Gotham
+StatusLabel.TextSize = 14
+StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+StatusLabel.Parent = StatusFrame
+
+-- Variables
+local isDragging = false
+local dragStart, startPos
+local autoTradeRunning = false
+local autoAcceptEnabled = false
+local connections = {}
+
+-- Make GUI Draggable
+TitleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                isDragging = false
+            end
+        end)
+    end
+end)
+
+TitleBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement and isDragging then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, 
+                                      startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+-- Close Button Functionality
+CloseButton.MouseButton1Click:Connect(function()
+    ScreenGui:Destroy()
+end)
+
+-- Update Status Function
+local function updateStatus(message, color)
+    StatusLabel.Text = "Status: " .. message
+    StatusLabel.TextColor3 = color or Color3.fromRGB(200, 200, 200)
+end
+
+-- ========== FPS BOOSTER FUNCTIONS ==========
+local function optimizeForFPS()
+    print("Applying FPS optimization...")
+    
+    -- Reduce graphics quality settings
+    if settings() then
+        pcall(function()
+            settings().Rendering.QualityLevel = 1
+            settings().Rendering.EnableFRM = false
+            settings().Rendering.MeshPartDetailLevel = Enum.MeshPartDetailLevel.Level01
+        end)
+    end
+    
+    -- Get lighting service
+    local Lighting = game:GetService("Lighting")
+    
+    -- Disable shadows and reduce lighting quality
+    Lighting.GlobalShadows = false
+    Lighting.ShadowSoftness = 0
+    Lighting.Brightness = 2
+    Lighting.Ambient = Color3.fromRGB(50, 50, 50)
+    Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+    Lighting.FogStart = 1000
+    Lighting.FogEnd = 10000
+    
+    -- Turn off expensive effects
+    Lighting.Bloom.Enabled = false
+    Lighting.ColorCorrection.Enabled = false
+    Lighting.Blur.Enabled = false
+    Lighting.SunRays.Enabled = false
+    Lighting.Atmosphere.Enabled = false
+    
+    -- Optimize post-processing
+    for _, effect in ipairs({"DepthOfField", "SunRays", "ColorCorrection", "Bloom", "Blur"}) do
+        local found = Lighting:FindFirstChild(effect)
+        if found then
+            found.Enabled = false
+        end
+    end
+    
+    -- Reduce particle effects throughout the game
+    task.defer(function()
+        while true do
+            task.wait(5) -- Check every 5 seconds
+            
+            -- Find and remove/destroy particle emitters
+            for _, instance in ipairs(workspace:GetDescendants()) do
+                if instance:IsA("ParticleEmitter") or instance:IsA("Trail") or instance:IsA("Beam") then
+                    instance.Enabled = false
+                end
+                
+                -- Disable surface effects
+                if instance:IsA("BasePart") then
+                    instance.Material = Enum.Material.Plastic
+                    instance.Reflectance = 0
+                    instance.Transparency = 0
+                end
+            end
+            
+            -- Also check in other containers
+            for _, container in ipairs({workspace, game:GetService("Workspace"):GetDescendants()}) do
+                for _, child in ipairs(container:GetChildren()) do
+                    if child:IsA("ParticleEmitter") or child:IsA("Smoke") or child:IsA("Fire") or child:IsA("Sparkles") then
+                        child.Enabled = false
+                    end
+                end
+            end
+        end
+    end)
+    
+    print("FPS optimization applied!")
+end
+
+-- ========== AUTO ANTI-AFK (ALWAYS ON) ==========
+local function startAutoAntiAFK()
+    print("Auto Anti-AFK enabled (jumps every 1 minute)")
+    
+    -- Jump every 1 minute (60 seconds) to prevent AFK kick
+    RunService.Heartbeat:Connect(function()
+        local currentTime = tick()
+        
+        -- Jump every 60 seconds
+        if currentTime % 60 < 0.1 then
+            local character = Player.Character
+            if character then
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+                if humanoid and humanoid.Health > 0 then
+                    -- Press spacebar to jump
+                    pcall(function()
+                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, nil)
+                        task.wait(0.05)
+                        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, nil)
+                    end)
+                    print("Anti-AFK: Character jumped")
+                end
+            end
+        end
+    end)
+end
+
+-- ========== INVENTORY COUNT FUNCTION ==========
+local function updateInventoryCount()
+    local count = 0
+    local backpack = Player:FindFirstChild("Backpack")
+    
+    -- Count tools in backpack (excluding Basic Bat)
+    if backpack then
+        for _, item in ipairs(backpack:GetChildren()) do
+            if item:IsA("Tool") and not string.find(item.Name:lower(), "basic bat") then
+                count = count + 1
+            end
+        end
+    end
+    
+    -- Count tools equipped on character (excluding Basic Bat)
+    local character = Player.Character
+    if character then
+        for _, item in ipairs(character:GetChildren()) do
+            if item:IsA("Tool") and not string.find(item.Name:lower(), "basic bat") then
+                count = count + 1
+            end
+        end
+    end
+    
+    -- Update the inventory display
+    InventoryLabel.Text = "Items: " .. count
+    
+    -- Change color based on count
+    if count == 0 then
+        InventoryLabel.TextColor3 = Color3.fromRGB(255, 100, 100) -- Red
+    elseif count < 10 then
+        InventoryLabel.TextColor3 = Color3.fromRGB(255, 165, 0) -- Orange
+    else
+        InventoryLabel.TextColor3 = Color3.fromRGB(100, 255, 100) -- Green
+    end
+    
+    return count
+end
+
+-- Update inventory counter continuously
+local inventoryConnection = RunService.RenderStepped:Connect(updateInventoryCount)
+table.insert(connections, {type = "inventory", connection = inventoryConnection})
+
+-- Also update when character respawns
+Player.CharacterAdded:Connect(function()
+    task.wait(0.5)
+    updateInventoryCount()
+end)
+
+-- Initial inventory count
+task.wait(0.5)
+updateInventoryCount()
+
+-- Update configuration from GUI
+ReceiverBox.FocusLost:Connect(function()
+    script_settings.receiver = ReceiverBox.Text
+    print("Receiver updated to: " .. script_settings.receiver)
+end)
+
+AmountBox.FocusLost:Connect(function()
+    script_settings.toGive = tonumber(AmountBox.Text) or 0
+    print("Amount to give updated to: " .. script_settings.toGive)
+end)
+
+-- ========== TRADE FUNCTIONS ==========
+-- Auto-accept function with proper unequipping
+local function setupAutoAccept()
+    if autoAcceptEnabled then return end
+    
+    updateStatus("Auto Accept Enabled", Color3.fromRGB(50, 205, 50))
+    autoAcceptEnabled = true
+    
+    local accepted = false
+    local lastAcceptTime = 0
+    
+    local acceptConnection = RunService.RenderStepped:Connect(function()
+        local playerGui = Player:WaitForChild("PlayerGui")
+        local tradeGui = playerGui:FindFirstChild("TradeRequest")
+        
+        if tradeGui then
+            if not accepted or tick() - lastAcceptTime > 1 then
+                print("Found TradeRequest GUI, looking for accept button...")
+                local acceptButton = tradeGui:FindFirstChild("Accept", true) or tradeGui:FindFirstChild("Yes", true) or tradeGui:FindFirstChild("Confirm", true) or tradeGui:FindFirstChild("OK", true)
+                
+                if acceptButton and (acceptButton:IsA("TextButton") or acceptButton:IsA("ImageButton")) and acceptButton.Active and acceptButton.Visible then
+                    local character = Player.Character
+                    if character then
+                        local humanoid = character:FindFirstChildOfClass("Humanoid")
+                        if humanoid then
+                            -- CRITICAL: Receiver must have NOTHING equipped to receive
+                            humanoid:UnequipTools()
+                            print("Unequipped all tools before accepting trade")
+                        end
+                    end
+                    
+                    print("Firing Activated event for accept button...")
+                    if firesignal then
+                        firesignal(acceptButton.Activated)
+                    else
+                        print("firesignal not available, trying alternative...")
+                        CompleteTradeEvent:FireServer(script_settings.sender, "Accept", script_settings.brainrot, nil)
+                    end
+                    
+                    accepted = true
+                    lastAcceptTime = tick()
+                    print("Event fired or alternative used, trade should be accepted.")
+                    
+                    -- DON'T equip anything after accepting! Receiver must stay empty-handed
+                end
+            end
+        else
+            accepted = false
+        end
+    end)
+    
+    -- Additional connection for receiver to handle received tools
+    if not isSending then
+        local character = Player.Character or Player.CharacterAdded:Wait()
+        
+        -- Auto-unequip when receiving ANY tool (especially brainrot tools)
+        local childAddedConnection = character.ChildAdded:Connect(function(child)
+            if child:IsA("Tool") then
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    -- Immediately unequip ANY tool that appears
+                    humanoid:UnequipTools()
+                    print("Unequipped received tool: " .. child.Name)
+                    
+                    -- Also move it to backpack if it's in character
+                    if child.Parent == character then
+                        child.Parent = Backpack
+                        print("Moved " .. child.Name .. " to backpack")
+                    end
+                end
+            end
+        end)
+        
+        table.insert(connections, {type = "childAdded", connection = childAddedConnection})
+        
+        -- Continuous loop to ensure receiver NEVER has anything equipped
+        local unequipLoopConnection = RunService.RenderStepped:Connect(function()
+            local character = Player.Character
+            if character then
+                local humanoid = character:FindFirstChildOfClass("Humanoid")
+                if humanoid then
+                    -- Check if ANY tool is equipped
+                    local equippedTool = character:FindFirstChildOfClass("Tool")
+                    if equippedTool then
+                        -- Unequip it immediately
+                        humanoid:UnequipTools()
+                        
+                        -- Also move it to backpack
+                        equippedTool.Parent = Backpack
+                        print("Force unequipped and moved to backpack: " .. equippedTool.Name)
+                    end
+                end
+            end
+        end)
+        
+        table.insert(connections, {type = "unequipLoop", connection = unequipLoopConnection})
+    end
+    
+    table.insert(connections, {type = "accept", connection = acceptConnection})
+end
+
+-- Auto-trade function (NO DISTANCE CHECK)
+local function startAutoTrade()
+    if autoTradeRunning then return end
+    
+    local receiverPlayer = Players:FindFirstChild(script_settings.receiver)
+    if not receiverPlayer then 
+        updateStatus("Receiver not found!", Color3.fromRGB(255, 100, 100))
+        return 
+    end
+    
+    updateStatus("Auto Trade Started", Color3.fromRGB(65, 105, 225))
+    autoTradeRunning = true
+    
+    local tradeCompletePrinted = false
+    local isTaskRunning = false
+    
+    local initialCounter = 0
+    for _, item in ipairs(Backpack:GetChildren()) do
+        if item:IsA("Tool") then
+            initialCounter = initialCounter + 1
+        end
+    end
+
+    local tradeConnection = RunService.Heartbeat:Connect(function()
+        if isTaskRunning then return end
+        if not autoTradeRunning then return end
+        
+        local receiverPlayer = Players:FindFirstChild(script_settings.receiver)
+        if not receiverPlayer then 
+            print("Receiver not found") 
+            updateStatus("Receiver offline", Color3.fromRGB(255, 100, 100))
+            return 
+        end
+        
+        local character = Player.Character
+        local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+        if not humanoid then print("No humanoid") return end
+        
+        local counter = 0
+        for _, item in ipairs(Backpack:GetChildren()) do
+            if item:IsA("Tool") then
+                counter = counter + 1
+            end
+        end
+        
+        local equipped = character:FindFirstChildOfClass("Tool")
+        if equipped then
+            counter = counter + 1
+        end
+        
+        if script_settings.toGive > 0 and (initialCounter - counter) >= script_settings.toGive then 
+            if not tradeCompletePrinted then
+                print("Reached toGive limit") 
+                updateStatus("Trade Complete", Color3.fromRGB(50, 205, 50))
+                tradeCompletePrinted = true
+            end
+            return 
+        end
+        
+        local brainrotTool = nil
+        local backpackChildren = Backpack:GetChildren()
+        
+        for i, tool in ipairs(backpackChildren) do
+            if i == 2 and tool:IsA("Tool") then
+                brainrotTool = tool
+                print("Selected brainrotTool: " .. tool.Name)
+                break
+            end
+        end
+        
+        if not brainrotTool then
+            if equipped and string.find(equipped.Name, script_settings.brainrot) then
+                brainrotTool = equipped
+                print("Using equipped brainrotTool: " .. equipped.Name)
+            end
+        end
+        
+        if not brainrotTool then 
+            if not tradeCompletePrinted then
+                print("trade done")
+                updateStatus("Trade Complete", Color3.fromRGB(50, 205, 50))
+                tradeCompletePrinted = true
+            end
+            return 
+        end
+        
+        local receiverCharacter = receiverPlayer.Character
+        if not receiverCharacter then print("No receiver character") return end
+        local receiverHumanoid = receiverCharacter:FindFirstChildOfClass("Humanoid")
+        if not receiverHumanoid or receiverHumanoid.Health <= 0 then print("Receiver humanoid dead") return end
+        
+        -- REMOVED DISTANCE CHECK - Trade works from any distance
+        -- local distance = (character.HumanoidRootPart.Position - receiverCharacter.HumanoidRootPart.Position).Magnitude
+        -- if distance > 7 then print("Too far") return end
+        
+        -- Try to find trade prompt on receiver
+        local tradePrompt = nil
+        
+        -- First check HumanoidRootPart
+        if receiverCharacter:FindFirstChild("HumanoidRootPart") then
+            tradePrompt = receiverCharacter.HumanoidRootPart:FindFirstChild("TradePrompt")
+        end
+        
+        -- If not found on HumanoidRootPart, check the entire character
+        if not tradePrompt then
+            for _, part in ipairs(receiverCharacter:GetDescendants()) do
+                if part.Name == "TradePrompt" and part:IsA("ProximityPrompt") then
+                    tradePrompt = part
+                    break
+                end
+            end
+        end
+        
+        if not tradePrompt then 
+            print("No tradePrompt found on receiver")
+            return 
+        end
+        
+        humanoid:UnequipTools()
+        print("Unequipped all tools for trade")
+        
+        isTaskRunning = true
+        task.wait(0.5)
+        
+        humanoid:EquipTool(brainrotTool)
+        task.wait(0.5)
+        
+        equipped = character:FindFirstChildOfClass("Tool")
+        if not equipped then 
+            print("Failed to equip") 
+            isTaskRunning = false
+            return 
+        end
+        
+        task.wait(1)
+        print("Firing proximity prompt for gift...")
+        
+        -- Fire the proximity prompt regardless of distance
+        pcall(function()
+            fireproximityprompt(tradePrompt, 1000) -- Large max activation distance
+        end)
+        
+        task.wait(1)
+        
+        local availableTools = {}
+        for _, tool in ipairs(Backpack:GetChildren()) do
+            if tool:IsA("Tool") and not string.find(tool.Name:lower(), "basic bat") then
+                table.insert(availableTools, tool)
+            end
+        end
+        
+        if #availableTools > 0 then
+            local randomTool = availableTools[math.random(1, #availableTools)]
+            humanoid:EquipTool(randomTool)
+            print("Equipped random tool: " .. randomTool.Name)
+        end
+        
+        isTaskRunning = false
+        
+        -- Update status with remaining count
+        local remaining = script_settings.toGive - (initialCounter - counter)
+        if script_settings.toGive == 0 then
+            updateStatus("Trading... " .. counter .. " left", Color3.fromRGB(65, 105, 225))
+        else
+            updateStatus("Trading... " .. remaining .. " to go", Color3.fromRGB(65, 105, 225))
+        end
+    end)
+    
+    table.insert(connections, {type = "trade", connection = tradeConnection})
+end
+
+-- Stop auto trade function
+local function stopAutoTrade()
+    autoTradeRunning = false
+    
+    -- Disconnect trade connections
+    for i = #connections, 1, -1 do
+        if connections[i].type == "trade" then
+            connections[i].connection:Disconnect()
+            table.remove(connections, i)
+        end
+    end
+    
+    updateStatus("Auto Trade Stopped", Color3.fromRGB(255, 100, 100))
+end
+
+-- Stop auto accept function
+local function stopAutoAccept()
+    autoAcceptEnabled = false
+    
+    -- Disconnect all accept-related connections
+    for i = #connections, 1, -1 do
+        if connections[i].type == "accept" or 
+           connections[i].type == "childAdded" or 
+           connections[i].type == "unequipLoop" then
+            connections[i].connection:Disconnect()
+            table.remove(connections, i)
+        end
+    end
+    
+    updateStatus("Auto Accept Disabled", Color3.fromRGB(255, 100, 100))
+end
+
+-- ========== BUTTON FUNCTIONALITY ==========
+AutoTradeButton.MouseButton1Click:Connect(function()
+    if not autoTradeRunning then
+        startAutoTrade()
+        AutoTradeButton.Text = "STOP AUTO TRADE"
+        AutoTradeButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60) -- Crimson
+    else
+        stopAutoTrade()
+        AutoTradeButton.Text = "START AUTO TRADE"
+        AutoTradeButton.BackgroundColor3 = Color3.fromRGB(65, 105, 225)
+    end
+end)
+
+AutoAcceptButton.MouseButton1Click:Connect(function()
+    if not autoAcceptEnabled then
+        setupAutoAccept()
+        AutoAcceptButton.Text = "STOP AUTO ACCEPT"
+        AutoAcceptButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60) -- Crimson
+    else
+        stopAutoAccept()
+        AutoAcceptButton.Text = "START AUTO ACCEPT"
+        AutoAcceptButton.BackgroundColor3 = Color3.fromRGB(50, 205, 50)
+    end
+end)
+
+-- ========== HOVER EFFECTS ==========
+local function setupButtonHover(button, normalColor, hoverColor)
+    button.MouseEnter:Connect(function()
+        if (button == AutoTradeButton and not autoTradeRunning) or 
+           (button == AutoAcceptButton and not autoAcceptEnabled) then
+            button.BackgroundColor3 = hoverColor
+        end
+    end)
+    
+    button.MouseLeave:Connect(function()
+        if button == AutoTradeButton then
+            button.BackgroundColor3 = autoTradeRunning and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(65, 105, 225)
+        elseif button == AutoAcceptButton then
+            button.BackgroundColor3 = autoAcceptEnabled and Color3.fromRGB(220, 20, 60) or Color3.fromRGB(50, 205, 50)
+        end
+    end)
+end
+
+setupButtonHover(AutoTradeButton, Color3.fromRGB(65, 105, 225), Color3.fromRGB(75, 115, 235))
+setupButtonHover(AutoAcceptButton, Color3.fromRGB(50, 205, 50), Color3.fromRGB(60, 215, 60))
+
+-- TextBox Focus Effects
+local function setupTextBoxFocus(textbox)
+    textbox.Focused:Connect(function()
+        textbox.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+    end)
+    
+    textbox.FocusLost:Connect(function()
+        textbox.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+    end)
+end
+
+setupTextBoxFocus(ReceiverBox)
+setupTextBoxFocus(AmountBox)
+
+-- Initial Status
+updateStatus("Ready to start", Color3.fromRGB(200, 200, 200))
+
+-- ========== AUTO-START FEATURES ==========
+-- Apply FPS optimization when script starts
+task.wait(1)
+optimizeForFPS()
+
+-- Start Anti-AFK automatically (no button needed)
+task.wait(1)
+startAutoAntiAFK()
+
+print("====================================")
+print("Auto Trade GUI Loaded!")
+print("FPS optimization applied")
+print("Auto Anti-AFK enabled (jumps every 1 minute)")
+print("Trade works from ANY distance")
+print("====================================")
+print("Drag the title bar to move the window")
+print("Enter receiver username and amount, then click buttons to start")
