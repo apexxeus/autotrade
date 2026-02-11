@@ -1,19 +1,38 @@
--- Inventory Counter Script for Brainrots (Attribute-Based, with GUI - Larger Text, Totals, Revised Scales, Maximize Button)
+-- Inventory Counter Script for Brainrots (Attribute-Based, with GUI - Larger Text, Totals, Revised Scales, Maximize Button, Nearest Scale for Unknown)
 -- Run in executor after injecting.
 
 local player = game:GetService("Players").LocalPlayer
 local backpack = player.Backpack
 
--- Scale categories based on Scale attribute (Big: 1.1-1.75, Titan: 1.76-2.0)
+-- Scale categories with midpoints for nearest assignment
+local scaleData = {
+    {name = "Baby", min = 0.1, max = 0.4, mid = 0.25},
+    {name = "Mini", min = 0.5, max = 0.9, mid = 0.7},
+    {name = "Normal", min = 1, max = 1, mid = 1},
+    {name = "Big", min = 1.1, max = 1.75, mid = 1.425},
+    {name = "Titan", min = 1.76, max = 2.0, mid = 1.88},
+    {name = "Colossal", min = 2.0, max = 3.0, mid = 2.5}
+}
+
 local function getScaleCategory(scale)
-    if scale >= 0.1 and scale <= 0.4 then return "Baby"
-    elseif scale >= 0.5 and scale <= 0.9 then return "Mini"
-    elseif scale == 1 then return "Normal"
-    elseif scale >= 1.1 and scale <= 1.75 then return "Big"  -- Narrowed to avoid overlap
-    elseif scale >= 1.76 and scale <= 2.0 then return "Titan"  -- Starts at 1.76
-    elseif scale >= 2.0 and scale <= 3.0 then return "Colossal"  -- Note: 2.0 will be Titan due to order
-    else return "Unknown"
+    -- Check if scale fits in a range
+    for _, data in ipairs(scaleData) do
+        if scale >= data.min and scale <= data.max then
+            return data.name
+        end
     end
+    
+    -- If not, find the nearest by distance to midpoints
+    local nearest = "Baby"
+    local minDistance = math.abs(scale - scaleData[1].mid)
+    for _, data in ipairs(scaleData) do
+        local distance = math.abs(scale - data.mid)
+        if distance < minDistance then
+            minDistance = distance
+            nearest = data.name
+        end
+    end
+    return nearest
 end
 
 -- Data structure: brainrotData[brainrotName][mutation][scaleCategory] = count
@@ -35,7 +54,7 @@ for _, item in pairs(backpack:GetChildren()) do
             end
             if not brainrotData[brainrotName][mutation] then
                 brainrotData[brainrotName][mutation] = {
-                    Baby = 0, Mini = 0, Normal = 0, Big = 0, Titan = 0, Colossal = 0, Unknown = 0
+                    Baby = 0, Mini = 0, Normal = 0, Big = 0, Titan = 0, Colossal = 0
                 }
             end
             
@@ -212,4 +231,4 @@ exitButton.MouseButton1Click:Connect(function()
     print("Inventory Counter GUI closed.")
 end)
 
-print("Inventory Counter GUI loaded with slightly bigger maximized size. Check your screen for the counter.")
+print("Inventory Counter GUI loaded with unknown scales assigned to nearest category. Check your screen for the counter.")
