@@ -1,0 +1,187 @@
+-- Inventory Counter Script for Brainrots (Attribute-Based, with GUI - Larger Text, Totals, Revised Scales)
+-- Run in executor after injecting.
+
+local player = game:GetService("Players").LocalPlayer
+local backpack = player.Backpack
+
+-- Scale categories based on Scale attribute (Big: 1.1-1.75, Titan: 1.76-2.0)
+local function getScaleCategory(scale)
+    if scale >= 0.1 and scale <= 0.4 then return "Baby"
+    elseif scale >= 0.5 and scale <= 0.9 then return "Mini"
+    elseif scale == 1 then return "Normal"
+    elseif scale >= 1.1 and scale <= 1.75 then return "Big"  -- Narrowed to avoid overlap
+    elseif scale >= 1.76 and scale <= 2.0 then return "Titan"  -- Starts at 1.76
+    elseif scale >= 2.0 and scale <= 3.0 then return "Colossal"  -- Note: 2.0 will be Titan due to order
+    else return "Unknown"
+    end
+end
+
+-- Data structure: brainrotData[brainrotName][mutation][scaleCategory] = count
+local brainrotData = {}
+
+-- Scan backpack for brainrots
+for _, item in pairs(backpack:GetChildren()) do
+    if item:IsA("Tool") then
+        local brainrotName = item:GetAttribute("BrainrotName")
+        local mutation = item:GetAttribute("Mutation")
+        local scale = item:GetAttribute("Scale")
+        
+        if brainrotName and mutation and scale then
+            local scaleCategory = getScaleCategory(scale)
+            
+            -- Initialize tables if needed
+            if not brainrotData[brainrotName] then
+                brainrotData[brainrotName] = {}
+            end
+            if not brainrotData[brainrotName][mutation] then
+                brainrotData[brainrotName][mutation] = {
+                    Baby = 0, Mini = 0, Normal = 0, Big = 0, Titan = 0, Colossal = 0, Unknown = 0
+                }
+            end
+            
+            -- Increment count
+            brainrotData[brainrotName][mutation][scaleCategory] = brainrotData[brainrotName][mutation][scaleCategory] + 1
+        end
+    end
+end
+
+-- GUI Setup
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "InventoryCounterGUI"
+screenGui.Parent = player.PlayerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 400, 0, 300)
+mainFrame.Position = UDim2.new(0.5, -200, 0.5, -150)  -- Center of screen
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.BorderSizePixel = 2
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 25)  -- Smaller height
+title.Text = "Brainrot Inventory Counter"
+title.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.SourceSansBold
+title.TextScaled = true
+title.TextSize = 16  -- Smaller size
+title.Parent = mainFrame
+
+local subtitle = Instance.new("TextLabel")
+subtitle.Size = UDim2.new(1, 0, 0, 20)
+subtitle.Position = UDim2.new(0, 0, 0, 25)  -- Below title
+subtitle.Text = "Made by Apexx"
+subtitle.BackgroundTransparency = 1
+subtitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+subtitle.Font = Enum.Font.SourceSans
+subtitle.TextScaled = true
+subtitle.TextSize = 12
+subtitle.TextXAlignment = Enum.TextXAlignment.Center
+subtitle.Parent = mainFrame
+
+local exitButton = Instance.new("TextButton")
+exitButton.Size = UDim2.new(0, 35, 0, 35)  -- Slightly larger
+exitButton.Position = UDim2.new(1, -35, 0, 0)
+exitButton.Text = "X"
+exitButton.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+exitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+exitButton.Font = Enum.Font.SourceSansBold
+exitButton.TextScaled = true
+exitButton.TextSize = 16
+exitButton.Parent = mainFrame
+
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Size = UDim2.new(1, -10, 1, -50)  -- Adjusted for smaller title and subtitle
+scrollFrame.Position = UDim2.new(0, 5, 0, 45)  -- Moved down
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.ScrollBarThickness = 10
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)  -- Will adjust dynamically
+scrollFrame.Parent = mainFrame
+
+-- Populate GUI with data
+local yOffset = 0
+for brainrotName, mutations in pairs(brainrotData) do
+    -- Calculate total for this brainrot
+    local totalCount = 0
+    for _, scales in pairs(mutations) do
+        for _, count in pairs(scales) do
+            totalCount = totalCount + count
+        end
+    end
+    
+    -- Brainrot Name Label
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Size = UDim2.new(1, 0, 0, 30)  -- Increased height
+    nameLabel.Position = UDim2.new(0, 0, 0, yOffset)
+    nameLabel.Text = brainrotName
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+    nameLabel.Font = Enum.Font.SourceSansBold
+    nameLabel.TextScaled = true
+    nameLabel.TextSize = 16  -- Fixed size
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.Parent = scrollFrame
+    yOffset = yOffset + 35
+    
+    -- Total Count Label
+    local totalLabel = Instance.new("TextLabel")
+    totalLabel.Size = UDim2.new(1, 0, 0, 25)
+    totalLabel.Position = UDim2.new(0, 10, 0, yOffset)
+    totalLabel.Text = "Total: " .. totalCount
+    totalLabel.BackgroundTransparency = 1
+    totalLabel.TextColor3 = Color3.fromRGB(255, 0, 255)  -- Distinct color for total
+    totalLabel.Font = Enum.Font.SourceSansBold
+    totalLabel.TextScaled = true
+    totalLabel.TextSize = 15
+    totalLabel.TextXAlignment = Enum.TextXAlignment.Left
+    totalLabel.Parent = scrollFrame
+    yOffset = yOffset + 30
+    
+    for mutation, scales in pairs(mutations) do
+        -- Mutation Label
+        local mutationLabel = Instance.new("TextLabel")
+        mutationLabel.Size = UDim2.new(1, 0, 0, 25)  -- Increased height
+        mutationLabel.Position = UDim2.new(0, 10, 0, yOffset)
+        mutationLabel.Text = mutation .. " Mutation"
+        mutationLabel.BackgroundTransparency = 1
+        mutationLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+        mutationLabel.Font = Enum.Font.SourceSans
+        mutationLabel.TextScaled = true
+        mutationLabel.TextSize = 15  -- Fixed size
+        mutationLabel.TextXAlignment = Enum.TextXAlignment.Left
+        mutationLabel.Parent = scrollFrame
+        yOffset = yOffset + 30
+        
+        -- Scale Counts
+        for category, count in pairs(scales) do
+            if count > 0 then
+                local scaleLabel = Instance.new("TextLabel")
+                scaleLabel.Size = UDim2.new(1, 0, 0, 25)  -- Increased height
+                scaleLabel.Position = UDim2.new(0, 20, 0, yOffset)
+                scaleLabel.Text = category .. " = " .. count
+                scaleLabel.BackgroundTransparency = 1
+                scaleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                scaleLabel.Font = Enum.Font.SourceSans
+                scaleLabel.TextScaled = true
+                scaleLabel.TextSize = 14  -- Fixed size
+                scaleLabel.TextXAlignment = Enum.TextXAlignment.Left
+                scaleLabel.Parent = scrollFrame
+                yOffset = yOffset + 25
+            end
+        end
+    end
+    yOffset = yOffset + 10  -- Space between brainrots
+end
+
+-- Adjust CanvasSize
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
+
+-- Exit Button Functionality
+exitButton.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+    print("Inventory Counter GUI closed.")
+end)
+
+print("Inventory Counter GUI loaded with smaller title and 'Made by Apexx'. Check your screen for the counter.")
