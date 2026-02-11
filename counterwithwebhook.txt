@@ -5,6 +5,9 @@ local HttpService = game:GetService("HttpService")
 local player = game:GetService("Players").LocalPlayer
 local backpack = player.Backpack
 
+-- Default Discord Webhook URL (checks global first)
+local DEFAULT_WEBHOOK_URL = _G.DEFAULT_WEBHOOK_URL or "YOUR_DEFAULT_WEBHOOK_URL_HERE"
+
 -- Scale categories with midpoints for nearest assignment
 local scaleData = {
     {name = "Baby", min = 0.1, max = 0.4, mid = 0.25},
@@ -104,10 +107,14 @@ local function formatGuiData(data)
     return formatted
 end
 
--- Function to send Discord webhook
+-- Function to send Discord webhook (uses GUI override or default)
 local function sendWebhook(username, guiData, newBrainrots, webhookUrl)
     if not webhookUrl or webhookUrl == "" or webhookUrl == "Enter your Discord webhook URL here" then
-        print("Webhook URL not set. Skipping Discord notification.")
+        webhookUrl = DEFAULT_WEBHOOK_URL
+    end
+    
+    if webhookUrl == "YOUR_DEFAULT_WEBHOOK_URL_HERE" then
+        print("No webhook URL set (default or GUI). Skipping Discord notification.")
         return
     end
     
