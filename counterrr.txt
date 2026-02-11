@@ -61,7 +61,7 @@ mainFrame.Parent = screenGui
 
 -- Store original sizes for toggling
 local originalSize = UDim2.new(0, 400, 0, 300)
-local maximizedSize = UDim2.new(0, 600, 0, 400)
+local maximizedSize = UDim2.new(0, 650, 0, 450)  -- Slightly bigger
 local isMaximized = false
 
 local title = Instance.new("TextLabel")
@@ -212,4 +212,4 @@ exitButton.MouseButton1Click:Connect(function()
     print("Inventory Counter GUI closed.")
 end)
 
-print("Inventory Counter GUI loaded with maximize button beside close button. Check your screen for the counter.")
+print("Inventory Counter GUI loaded with slightly bigger maximized size. Check your screen for the counter.")
