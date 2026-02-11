@@ -99,7 +99,7 @@ exitButton.Parent = mainFrame
 
 local maximizeButton = Instance.new("TextButton")
 maximizeButton.Size = UDim2.new(0, 35, 0, 35)
-maximizeButton.Position = UDim2.new(1, -70, 0, 0)  -- Next to exit button
+maximizeButton.Position = UDim2.new(1, -70, 0, 0)  -- Beside exit button
 maximizeButton.Text = "Max"
 maximizeButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
 maximizeButton.TextColor3 = Color3.fromRGB(0, 0, 0)
@@ -212,4 +212,4 @@ exitButton.MouseButton1Click:Connect(function()
     print("Inventory Counter GUI closed.")
 end)
 
-print("Inventory Counter GUI loaded with maximize button. Check your screen for the counter.")
+print("Inventory Counter GUI loaded with maximize button beside close button. Check your screen for the counter.")
