@@ -1,4 +1,4 @@
--- Inventory Counter Script for Brainrots (Attribute-Based, with GUI - Larger Text, Totals, Revised Scales)
+-- Inventory Counter Script for Brainrots (Attribute-Based, with GUI - Larger Text, Totals, Revised Scales, Maximize Button)
 -- Run in executor after injecting.
 
 local player = game:GetService("Players").LocalPlayer
@@ -51,13 +51,18 @@ screenGui.Name = "InventoryCounterGUI"
 screenGui.Parent = player.PlayerGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 400, 0, 300)
+mainFrame.Size = UDim2.new(0, 400, 0, 300)  -- Original size
 mainFrame.Position = UDim2.new(0.5, -200, 0.5, -150)  -- Center of screen
 mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 mainFrame.BorderSizePixel = 2
 mainFrame.Active = true
 mainFrame.Draggable = true
 mainFrame.Parent = screenGui
+
+-- Store original sizes for toggling
+local originalSize = UDim2.new(0, 400, 0, 300)
+local maximizedSize = UDim2.new(0, 600, 0, 400)
+local isMaximized = false
 
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, 0, 0, 25)  -- Smaller height
@@ -91,6 +96,17 @@ exitButton.Font = Enum.Font.SourceSansBold
 exitButton.TextScaled = true
 exitButton.TextSize = 16
 exitButton.Parent = mainFrame
+
+local maximizeButton = Instance.new("TextButton")
+maximizeButton.Size = UDim2.new(0, 35, 0, 35)
+maximizeButton.Position = UDim2.new(1, -70, 0, 0)  -- Next to exit button
+maximizeButton.Text = "Max"
+maximizeButton.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+maximizeButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+maximizeButton.Font = Enum.Font.SourceSansBold
+maximizeButton.TextScaled = true
+maximizeButton.TextSize = 14
+maximizeButton.Parent = mainFrame
 
 local scrollFrame = Instance.new("ScrollingFrame")
 scrollFrame.Size = UDim2.new(1, -10, 1, -50)  -- Adjusted for smaller title and subtitle
@@ -178,10 +194,22 @@ end
 -- Adjust CanvasSize
 scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
 
+-- Maximize Button Functionality
+maximizeButton.MouseButton1Click:Connect(function()
+    isMaximized = not isMaximized
+    if isMaximized then
+        mainFrame.Size = maximizedSize
+        maximizeButton.Text = "Min"
+    else
+        mainFrame.Size = originalSize
+        maximizeButton.Text = "Max"
+    end
+end)
+
 -- Exit Button Functionality
 exitButton.MouseButton1Click:Connect(function()
     screenGui:Destroy()
     print("Inventory Counter GUI closed.")
 end)
 
-print("Inventory Counter GUI loaded with smaller title and 'Made by Apexx'. Check your screen for the counter.")
+print("Inventory Counter GUI loaded with maximize button. Check your screen for the counter.")
