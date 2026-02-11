@@ -1,0 +1,747 @@
+-- Inventory Counter Script for Brainrots (Attribute-Based, with GUI - Improved Presentation, Title Moved Left, Refresh Button, Editable Discord Webhook)
+-- Run in executor after injecting.
+
+local HttpService = game:GetService("HttpService")
+local player = game:GetService("Players").LocalPlayer
+local backpack = player.Backpack
+
+-- Scale categories with midpoints for nearest assignment
+local scaleData = {
+    {name = "Baby", min = 0.1, max = 0.4, mid = 0.25},
+    {name = "Mini", min = 0.5, max = 0.9, mid = 0.7},
+    {name = "Normal", min = 1, max = 1, mid = 1},
+    {name = "Big", min = 1.1, max = 1.75, mid = 1.425},
+    {name = "Titan", min = 1.76, max = 2.0, mid = 1.88},
+    {name = "Colossal", min = 2.0, max = 3.0, mid = 2.5}
+}
+
+local function getScaleCategory(scale)
+    -- Check if scale fits in a range
+    for _, data in ipairs(scaleData) do
+        if scale >= data.min and scale <= data.max then
+            return data.name
+        end
+    end
+    
+    -- If not, find the nearest by distance to midpoints
+    local nearest = "Baby"
+    local minDistance = math.abs(scale - scaleData[1].mid)
+    for _, data in ipairs(scaleData) do
+        local distance = math.abs(scale - data.mid)
+        if distance < minDistance then
+            minDistance = distance
+            nearest = data.name
+        end
+    end
+    return nearest
+end
+
+-- Function to scan inventory and return data
+local function scanInventory()
+    local data = {}
+    for _, item in pairs(backpack:GetChildren()) do
+        if item:IsA("Tool") then
+            local brainrotName = item:GetAttribute("BrainrotName")
+            local mutation = item:GetAttribute("Mutation")
+            local scale = item:GetAttribute("Scale")
+            
+            if brainrotName and mutation and scale then
+                local scaleCategory = getScaleCategory(scale)
+                
+                if not data[brainrotName] then
+                    data[brainrotName] = {}
+                end
+                if not data[brainrotName][mutation] then
+                    data[brainrotName][mutation] = {
+                        Baby = 0, Mini = 0, Normal = 0, Big = 0, Titan = 0, Colossal = 0
+                    }
+                end
+                
+                data[brainrotName][mutation][scaleCategory] = data[brainrotName][mutation][scaleCategory] + 1
+            end
+        end
+    end
+    return data
+end
+
+-- Function to detect new brainrots (compares current to previous)
+local function detectNewBrainrots(currentData, previousData)
+    local newBrainrots = {}
+    for brainrotName, mutations in pairs(currentData) do
+        for mutation, scales in pairs(mutations) do
+            for scale, count in pairs(scales) do
+                local prevCount = (previousData[brainrotName] and previousData[brainrotName][mutation] and previousData[brainrotName][mutation][scale]) or 0
+                if count > prevCount then
+                    table.insert(newBrainrots, {name = brainrotName, mutation = mutation, scale = scale, count = count - prevCount})
+                end
+            end
+        end
+    end
+    return newBrainrots
+end
+
+-- Function to format GUI data as string
+local function formatGuiData(data)
+    local formatted = ""
+    for brainrotName, mutations in pairs(data) do
+        local totalCount = 0
+        for _, scales in pairs(mutations) do
+            for _, count in pairs(scales) do
+                totalCount = totalCount + count
+            end
+        end
+        formatted = formatted .. brainrotName .. "\nTotal: " .. totalCount .. "\n"
+        for mutation, scales in pairs(mutations) do
+            formatted = formatted .. "  " .. mutation .. " Mutation\n"
+            for category, count in pairs(scales) do
+                if count > 0 then
+                    formatted = formatted .. "    " .. category .. " = " .. count .. "\n"
+                end
+            end
+        end
+        formatted = formatted .. "\n"
+    end
+    return formatted
+end
+
+-- Function to send Discord webhook
+local function sendWebhook(username, guiData, newBrainrots, webhookUrl)
+    if not webhookUrl or webhookUrl == "" or webhookUrl == "Enter your Discord webhook URL here" then
+        print("Webhook URL not set. Skipping Discord notification.")
+        return
+    end
+    
+    local message = "**" .. username .. "**\nNew Brainrot Detected\n\n" .. guiData
+    for _, new in ipairs(newBrainrots) do
+        message = message .. "New " .. new.name .. " (" .. new.mutation .. ") - " .. new.scale .. "\n"
+    end
+    message = message .. "\nTotal New Brainrot: " .. #newBrainrots .. "\n"
+    
+    local payload = {
+        content = message
+    }
+    
+    local success, err = pcall(function()
+        HttpService:PostAsync(webhookUrl, HttpService:JSONEncode(payload), Enum.HttpContentType.ApplicationJson)
+    end)
+    
+    if success then
+        print("Discord webhook sent successfully.")
+    else
+        print("Failed to send webhook: " .. err)
+    end
+end
+
+-- Initial scan
+local previousData = scanInventory()
+
+-- GUI Setup
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "InventoryCounterGUI"
+screenGui.Parent = player.PlayerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 400, 0, 300)  -- Original size
+mainFrame.Position = UDim2.new(0.5, -200, 0.5, -150)  -- Center of screen
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)  -- Darker background
+mainFrame.BorderSizePixel = 3
+mainFrame.BorderColor3 = Color3.fromRGB(100, 100, 100)  -- Subtle border
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+-- Store original sizes for toggling
+local originalSize = UDim2.new(0, 400, 0, 300)
+local maximizedSize = UDim2.new(0, 650, 0, 450)  -- Slightly bigger
+local isMaximized = false
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(0.7, 0, 0, 30)  -- Reduced width to avoid overlap, moved left
+title.Position = UDim2.new(0, 10, 0, 5)  -- Left-aligned with padding
+title.Text = "Brainrot Counter"
+title.BackgroundColor3 = Color3.fromRGB(0, 100, 200)  -- Blue title
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.SourceSansBold
+title.TextScaled = true
+title.TextSize = 18  -- Slightly larger
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = mainFrame
+
+local subtitle = Instance.new("TextLabel")
+subtitle.Size = UDim2.new(0.7, 0, 0, 20)
+subtitle.Position = UDim2.new(0, 10, 0, 35)  -- Below title
+subtitle.Text = "Made by Apexx"
+subtitle.BackgroundTransparency = 1
+subtitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+subtitle.Font = Enum.Font.SourceSans
+subtitle.TextScaled = true
+subtitle.TextSize = 14
+subtitle.TextXAlignment = Enum.TextXAlignment.Left
+subtitle.Parent = mainFrame
+
+-- Webhook URL TextBox
+local webhookLabel = Instance.new("TextLabel")
+webhookLabel.Size = UDim2.new(0.4, 0, 0, 25)
+webhookLabel.Position = UDim2.new(0, 10, 0, 60)  -- Below subtitle
+webhookLabel.Text = "Discord Webhook URL:"
+webhookLabel.BackgroundTransparency = 1
+webhookLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+webhookLabel.Font = Enum.Font.SourceSansBold
+webhookLabel.TextScaled = true
+webhookLabel.TextSize = 14
+webhookLabel.TextXAlignment = Enum.TextXAlignment.Left
+webhookLabel.Parent = mainFrame
+
+local webhookTextBox = Instance.new("TextBox")
+webhookTextBox.Size = UDim2.new(0.55, -10, 0, 25)
+webhookTextBox.Position = UDim2.new(0.4, 10, 0, 60)
+webhookTextBox.Text = "Enter your Discord webhook URL here"
+webhookTextBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+webhookTextBox.BorderSizePixel = 2
+webhookTextBox.BorderColor3 = Color3.fromRGB(100, 100, 100)
+webhookTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+webhookTextBox.Font = Enum.Font.SourceSans
+webhookTextBox.TextScaled = true
+webhookTextBox.TextSize = 12
+webhookTextBox.ClearTextOnFocus = false
+webhookTextBox.Parent = mainFrame
+
+local exitButton = Instance.new("TextButton")
+exitButton.Size = UDim2.new(0, 40, 0, 30)
+exitButton.Position = UDim2.new(1, -45, 0, 5)
+exitButton.Text = "X"
+exitButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)  -- Red
+exitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+exitButton.Font = Enum.Font.SourceSansBold
+exitButton.TextScaled = true
+exitButton.TextSize = 16
+exitButton.Parent = mainFrame
+
+local maximizeButton = Instance.new("TextButton")
+maximizeButton.Size = UDim2.new(0, 40, 0, 30)
+maximizeButton.Position = UDim2.new(1, -90, 0, 5)  -- Beside exit
+maximizeButton.Text = "Max"
+maximizeButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)  -- Green
+maximizeButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+maximizeButton.Font = Enum.Font.SourceSansBold
+maximizeButton.TextScaled = true
+maximizeButton.TextSize = 14
+maximizeButton.Parent = mainFrame
+
+local refreshButton = Instance.new("TextButton")
+refreshButton.Size = UDim2.new(0, 40, 0, 30)
+refreshButton.Position = UDim2.new(1, -135, 0, 5)  -- Beside maximize
+refreshButton.Text = "Refresh"
+refreshButton.BackgroundColor3 = Color3.fromRGB(50, 150, 200)  -- Cyan
+refreshButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+refreshButton.Font = Enum.Font.SourceSansBold
+refreshButton.TextScaled = true
+refreshButton.TextSize = 12
+refreshButton.Parent = mainFrame
+
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Size = UDim2.new(1, -20, 1, -95)  -- Adjusted for better spacing
+scrollFrame.Position = UDim2.new(0, 10, 0, 90)  -- Moved down
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.ScrollBarThickness = 12
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)  -- Will adjust dynamically
+scrollFrame.Parent = mainFrame
+
+-- Function to update GUI
+local function updateGUI(data)
+    -- Clear previous content
+    for _, child in pairs(scrollFrame:GetChildren()) do
+        if child:IsA("TextLabel") then
+            child:Destroy()
+        end
+    end
+    
+    -- Populate GUI with data
+    local yOffset = 0
+    for brainrotName, mutations in pairs(data) do
+        -- Calculate total for this brainrot
+        local totalCount = 0
+        for _, scales in pairs(mutations) do
+            for _, count in pairs(scales) do
+                totalCount = totalCount + count
+            end
+        end
+        
+        -- Brainrot Name Label
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(1, 0, 0, 35)  -- Increased height
+        nameLabel.Position = UDim2.new(0, 0, 0, yOffset)
+        nameLabel.Text = brainrotName
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+        nameLabel.Font = Enum.Font.SourceSansBold
+        nameLabel.TextScaled = true
+        nameLabel.TextSize = 18  -- Larger
+        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        nameLabel.Parent = scrollFrame
+        yOffset = yOffset + 40
+        
+        -- Total Count Label
+        local totalLabel = Instance.new("TextLabel")
+        totalLabel.Size = UDim2.new(1, 0, 0, 25)
+        totalLabel.Position = UDim2.new(0, 10, 0, yOffset)
+        totalLabel.Text = "Total: " .. totalCount
+        totalLabel.BackgroundTransparency = 1
+        totalLabel.TextColor3 = Color3.fromRGB(255, 0, 255)  -- Distinct color for total
+        totalLabel.Font = Enum.Font.SourceSansBold
+        totalLabel.TextScaled = true
+        totalLabel.TextSize = 16
+        totalLabel.TextXAlignment = Enum.TextXAlignment.Left
+        totalLabel.Parent = scrollFrame
+        yOffset = yOffset + 30
+        
+        for mutation, scales in pairs(mutations) do
+            -- Mutation Label
+            local mutationLabel = Instance.new("TextLabel")
+            mutationLabel.Size = UDim2.new(1, 0, 0, 25)  -- Increased height
+            mutationLabel.Position = UDim2.new(0, 10, 0, yOffset)
+            mutationLabel.Text = mutation .. " Mutation"
+            mutationLabel.BackgroundTransparency = 1
+            mutationLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+            mutationLabel.Font = Enum.Font.SourceSans
+            mutationLabel.TextScaled = true
+            mutationLabel.TextSize = 16  -- Larger
+            mutationLabel.TextXAlignment = Enum.TextXAlignment.Left
+            mutationLabel.Parent = scrollFrame
+            yOffset = yOffset + 30
+            
+            -- Scale Counts
+            for category, count in pairs(scales) do
+                if count > 0 then
+                    local scaleLabel = Instance.new("TextLabel")
+                    scaleLabel.Size = UDim2.new(1, 0, 0, 25)  -- Increased height
+                    scaleLabel.Position = UDim2.new(0, 20, 0, yOffset)
+                    scaleLabel.Text = category .. " = " .. count
+                    scaleLabel.BackgroundTransparency = 1
+                    scaleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    scaleLabel.Font = Enum.Font.SourceSans
+                    scaleLabel.TextScaled = true
+                    scaleLabel.TextSize = 15  -- Larger
+                    scaleLabel.TextXAlignment = Enum.TextXAlignment.Left
+                    scaleLabel.Parent = scrollFrame
+                    yOffset = yOffset + 25
+                end
+            end
+        end
+        yOffset = yOffset + 15  -- More space between brainrots
+    end
+    
+    -- Adjust CanvasSize
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
+end
+
+-- Initial GUI update
+updateGUI(previousData)
+
+-- Maximize Button Functionality
+maximizeButton.MouseButton1Click:Connect(function()
+    isMaximized = not isMaximized
+    if isMaximized then
+        mainFrame.Size = maximizedSize
+        maximizeButton.Text = "Min"
+    else
+        mainFrame.Size = originalSize
+        maximizeButton.Text = "Max"
+    end
+end)
+
+-- Refresh Button Functionality
+refreshButton.MouseButton1Click:Connect(function()
+    local currentData = scanInventory()
+    local newBrainrots = detectNewBrainrots(currentData, previousData)
+    
+    if #newBrainrots > 0 then
+        local guiData = formatGuiData(currentData)
+        sendWebhook(player.Name, guiData, newBrainrots, webhookTextBox.Text)
+    end
+    
+    updateGUI(currentData)
+    previousData = currentData
+    print("Inventory refreshed.")
+end)
+
+-- Exit Button Functionality
+exitButton.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+    print("Inventory Counter GUI closed.")
+end)
+
+print("Inventory Counter GUI loaded with improved presentation and title moved left. Check your screen for the counter.")-- Inventory Counter Script for Brainrots (Attribute-Based, with GUI - Improved Presentation, Title Moved Left, Refresh Button, Editable Discord Webhook)
+-- Run in executor after injecting.
+
+local HttpService = game:GetService("HttpService")
+local player = game:GetService("Players").LocalPlayer
+local backpack = player.Backpack
+
+-- Scale categories with midpoints for nearest assignment
+local scaleData = {
+    {name = "Baby", min = 0.1, max = 0.4, mid = 0.25},
+    {name = "Mini", min = 0.5, max = 0.9, mid = 0.7},
+    {name = "Normal", min = 1, max = 1, mid = 1},
+    {name = "Big", min = 1.1, max = 1.75, mid = 1.425},
+    {name = "Titan", min = 1.76, max = 2.0, mid = 1.88},
+    {name = "Colossal", min = 2.0, max = 3.0, mid = 2.5}
+}
+
+local function getScaleCategory(scale)
+    -- Check if scale fits in a range
+    for _, data in ipairs(scaleData) do
+        if scale >= data.min and scale <= data.max then
+            return data.name
+        end
+    end
+    
+    -- If not, find the nearest by distance to midpoints
+    local nearest = "Baby"
+    local minDistance = math.abs(scale - scaleData[1].mid)
+    for _, data in ipairs(scaleData) do
+        local distance = math.abs(scale - data.mid)
+        if distance < minDistance then
+            minDistance = distance
+            nearest = data.name
+        end
+    end
+    return nearest
+end
+
+-- Function to scan inventory and return data
+local function scanInventory()
+    local data = {}
+    for _, item in pairs(backpack:GetChildren()) do
+        if item:IsA("Tool") then
+            local brainrotName = item:GetAttribute("BrainrotName")
+            local mutation = item:GetAttribute("Mutation")
+            local scale = item:GetAttribute("Scale")
+            
+            if brainrotName and mutation and scale then
+                local scaleCategory = getScaleCategory(scale)
+                
+                if not data[brainrotName] then
+                    data[brainrotName] = {}
+                end
+                if not data[brainrotName][mutation] then
+                    data[brainrotName][mutation] = {
+                        Baby = 0, Mini = 0, Normal = 0, Big = 0, Titan = 0, Colossal = 0
+                    }
+                end
+                
+                data[brainrotName][mutation][scaleCategory] = data[brainrotName][mutation][scaleCategory] + 1
+            end
+        end
+    end
+    return data
+end
+
+-- Function to detect new brainrots (compares current to previous)
+local function detectNewBrainrots(currentData, previousData)
+    local newBrainrots = {}
+    for brainrotName, mutations in pairs(currentData) do
+        for mutation, scales in pairs(mutations) do
+            for scale, count in pairs(scales) do
+                local prevCount = (previousData[brainrotName] and previousData[brainrotName][mutation] and previousData[brainrotName][mutation][scale]) or 0
+                if count > prevCount then
+                    table.insert(newBrainrots, {name = brainrotName, mutation = mutation, scale = scale, count = count - prevCount})
+                end
+            end
+        end
+    end
+    return newBrainrots
+end
+
+-- Function to format GUI data as string
+local function formatGuiData(data)
+    local formatted = ""
+    for brainrotName, mutations in pairs(data) do
+        local totalCount = 0
+        for _, scales in pairs(mutations) do
+            for _, count in pairs(scales) do
+                totalCount = totalCount + count
+            end
+        end
+        formatted = formatted .. brainrotName .. "\nTotal: " .. totalCount .. "\n"
+        for mutation, scales in pairs(mutations) do
+            formatted = formatted .. "  " .. mutation .. " Mutation\n"
+            for category, count in pairs(scales) do
+                if count > 0 then
+                    formatted = formatted .. "    " .. category .. " = " .. count .. "\n"
+                end
+            end
+        end
+        formatted = formatted .. "\n"
+    end
+    return formatted
+end
+
+-- Function to send Discord webhook
+local function sendWebhook(username, guiData, newBrainrots, webhookUrl)
+    if not webhookUrl or webhookUrl == "" or webhookUrl == "Enter your Discord webhook URL here" then
+        print("Webhook URL not set. Skipping Discord notification.")
+        return
+    end
+    
+    local message = "**" .. username .. "**\nNew Brainrot Detected\n\n" .. guiData
+    for _, new in ipairs(newBrainrots) do
+        message = message .. "New " .. new.name .. " (" .. new.mutation .. ") - " .. new.scale .. "\n"
+    end
+    message = message .. "\nTotal New Brainrot: " .. #newBrainrots .. "\n"
+    
+    local payload = {
+        content = message
+    }
+    
+    local success, err = pcall(function()
+        HttpService:PostAsync(webhookUrl, HttpService:JSONEncode(payload), Enum.HttpContentType.ApplicationJson)
+    end)
+    
+    if success then
+        print("Discord webhook sent successfully.")
+    else
+        print("Failed to send webhook: " .. err)
+    end
+end
+
+-- Initial scan
+local previousData = scanInventory()
+
+-- GUI Setup
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "InventoryCounterGUI"
+screenGui.Parent = player.PlayerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 400, 0, 300)  -- Original size
+mainFrame.Position = UDim2.new(0.5, -200, 0.5, -150)  -- Center of screen
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)  -- Darker background
+mainFrame.BorderSizePixel = 3
+mainFrame.BorderColor3 = Color3.fromRGB(100, 100, 100)  -- Subtle border
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = screenGui
+
+-- Store original sizes for toggling
+local originalSize = UDim2.new(0, 400, 0, 300)
+local maximizedSize = UDim2.new(0, 650, 0, 450)  -- Slightly bigger
+local isMaximized = false
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(0.7, 0, 0, 30)  -- Reduced width to avoid overlap, moved left
+title.Position = UDim2.new(0, 10, 0, 5)  -- Left-aligned with padding
+title.Text = "Brainrot Counter"
+title.BackgroundColor3 = Color3.fromRGB(0, 100, 200)  -- Blue title
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.SourceSansBold
+title.TextScaled = true
+title.TextSize = 18  -- Slightly larger
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = mainFrame
+
+local subtitle = Instance.new("TextLabel")
+subtitle.Size = UDim2.new(0.7, 0, 0, 20)
+subtitle.Position = UDim2.new(0, 10, 0, 35)  -- Below title
+subtitle.Text = "Made by Apexx"
+subtitle.BackgroundTransparency = 1
+subtitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+subtitle.Font = Enum.Font.SourceSans
+subtitle.TextScaled = true
+subtitle.TextSize = 14
+subtitle.TextXAlignment = Enum.TextXAlignment.Left
+subtitle.Parent = mainFrame
+
+-- Webhook URL TextBox
+local webhookLabel = Instance.new("TextLabel")
+webhookLabel.Size = UDim2.new(0.4, 0, 0, 25)
+webhookLabel.Position = UDim2.new(0, 10, 0, 60)  -- Below subtitle
+webhookLabel.Text = "Discord Webhook URL:"
+webhookLabel.BackgroundTransparency = 1
+webhookLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+webhookLabel.Font = Enum.Font.SourceSansBold
+webhookLabel.TextScaled = true
+webhookLabel.TextSize = 14
+webhookLabel.TextXAlignment = Enum.TextXAlignment.Left
+webhookLabel.Parent = mainFrame
+
+local webhookTextBox = Instance.new("TextBox")
+webhookTextBox.Size = UDim2.new(0.55, -10, 0, 25)
+webhookTextBox.Position = UDim2.new(0.4, 10, 0, 60)
+webhookTextBox.Text = "Enter your Discord webhook URL here"
+webhookTextBox.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+webhookTextBox.BorderSizePixel = 2
+webhookTextBox.BorderColor3 = Color3.fromRGB(100, 100, 100)
+webhookTextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+webhookTextBox.Font = Enum.Font.SourceSans
+webhookTextBox.TextScaled = true
+webhookTextBox.TextSize = 12
+webhookTextBox.ClearTextOnFocus = false
+webhookTextBox.Parent = mainFrame
+
+local exitButton = Instance.new("TextButton")
+exitButton.Size = UDim2.new(0, 40, 0, 30)
+exitButton.Position = UDim2.new(1, -45, 0, 5)
+exitButton.Text = "X"
+exitButton.BackgroundColor3 = Color3.fromRGB(200, 50, 50)  -- Red
+exitButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+exitButton.Font = Enum.Font.SourceSansBold
+exitButton.TextScaled = true
+exitButton.TextSize = 16
+exitButton.Parent = mainFrame
+
+local maximizeButton = Instance.new("TextButton")
+maximizeButton.Size = UDim2.new(0, 40, 0, 30)
+maximizeButton.Position = UDim2.new(1, -90, 0, 5)  -- Beside exit
+maximizeButton.Text = "Max"
+maximizeButton.BackgroundColor3 = Color3.fromRGB(50, 200, 50)  -- Green
+maximizeButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+maximizeButton.Font = Enum.Font.SourceSansBold
+maximizeButton.TextScaled = true
+maximizeButton.TextSize = 14
+maximizeButton.Parent = mainFrame
+
+local refreshButton = Instance.new("TextButton")
+refreshButton.Size = UDim2.new(0, 40, 0, 30)
+refreshButton.Position = UDim2.new(1, -135, 0, 5)  -- Beside maximize
+refreshButton.Text = "Refresh"
+refreshButton.BackgroundColor3 = Color3.fromRGB(50, 150, 200)  -- Cyan
+refreshButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+refreshButton.Font = Enum.Font.SourceSansBold
+refreshButton.TextScaled = true
+refreshButton.TextSize = 12
+refreshButton.Parent = mainFrame
+
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Size = UDim2.new(1, -20, 1, -95)  -- Adjusted for better spacing
+scrollFrame.Position = UDim2.new(0, 10, 0, 90)  -- Moved down
+scrollFrame.BackgroundTransparency = 1
+scrollFrame.ScrollBarThickness = 12
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)  -- Will adjust dynamically
+scrollFrame.Parent = mainFrame
+
+-- Function to update GUI
+local function updateGUI(data)
+    -- Clear previous content
+    for _, child in pairs(scrollFrame:GetChildren()) do
+        if child:IsA("TextLabel") then
+            child:Destroy()
+        end
+    end
+    
+    -- Populate GUI with data
+    local yOffset = 0
+    for brainrotName, mutations in pairs(data) do
+        -- Calculate total for this brainrot
+        local totalCount = 0
+        for _, scales in pairs(mutations) do
+            for _, count in pairs(scales) do
+                totalCount = totalCount + count
+            end
+        end
+        
+        -- Brainrot Name Label
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Size = UDim2.new(1, 0, 0, 35)  -- Increased height
+        nameLabel.Position = UDim2.new(0, 0, 0, yOffset)
+        nameLabel.Text = brainrotName
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
+        nameLabel.Font = Enum.Font.SourceSansBold
+        nameLabel.TextScaled = true
+        nameLabel.TextSize = 18  -- Larger
+        nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        nameLabel.Parent = scrollFrame
+        yOffset = yOffset + 40
+        
+        -- Total Count Label
+        local totalLabel = Instance.new("TextLabel")
+        totalLabel.Size = UDim2.new(1, 0, 0, 25)
+        totalLabel.Position = UDim2.new(0, 10, 0, yOffset)
+        totalLabel.Text = "Total: " .. totalCount
+        totalLabel.BackgroundTransparency = 1
+        totalLabel.TextColor3 = Color3.fromRGB(255, 0, 255)  -- Distinct color for total
+        totalLabel.Font = Enum.Font.SourceSansBold
+        totalLabel.TextScaled = true
+        totalLabel.TextSize = 16
+        totalLabel.TextXAlignment = Enum.TextXAlignment.Left
+        totalLabel.Parent = scrollFrame
+        yOffset = yOffset + 30
+        
+        for mutation, scales in pairs(mutations) do
+            -- Mutation Label
+            local mutationLabel = Instance.new("TextLabel")
+            mutationLabel.Size = UDim2.new(1, 0, 0, 25)  -- Increased height
+            mutationLabel.Position = UDim2.new(0, 10, 0, yOffset)
+            mutationLabel.Text = mutation .. " Mutation"
+            mutationLabel.BackgroundTransparency = 1
+            mutationLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+            mutationLabel.Font = Enum.Font.SourceSans
+            mutationLabel.TextScaled = true
+            mutationLabel.TextSize = 16  -- Larger
+            mutationLabel.TextXAlignment = Enum.TextXAlignment.Left
+            mutationLabel.Parent = scrollFrame
+            yOffset = yOffset + 30
+            
+            -- Scale Counts
+            for category, count in pairs(scales) do
+                if count > 0 then
+                    local scaleLabel = Instance.new("TextLabel")
+                    scaleLabel.Size = UDim2.new(1, 0, 0, 25)  -- Increased height
+                    scaleLabel.Position = UDim2.new(0, 20, 0, yOffset)
+                    scaleLabel.Text = category .. " = " .. count
+                    scaleLabel.BackgroundTransparency = 1
+                    scaleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    scaleLabel.Font = Enum.Font.SourceSans
+                    scaleLabel.TextScaled = true
+                    scaleLabel.TextSize = 15  -- Larger
+                    scaleLabel.TextXAlignment = Enum.TextXAlignment.Left
+                    scaleLabel.Parent = scrollFrame
+                    yOffset = yOffset + 25
+                end
+            end
+        end
+        yOffset = yOffset + 15  -- More space between brainrots
+    end
+    
+    -- Adjust CanvasSize
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
+end
+
+-- Initial GUI update
+updateGUI(previousData)
+
+-- Maximize Button Functionality
+maximizeButton.MouseButton1Click:Connect(function()
+    isMaximized = not isMaximized
+    if isMaximized then
+        mainFrame.Size = maximizedSize
+        maximizeButton.Text = "Min"
+    else
+        mainFrame.Size = originalSize
+        maximizeButton.Text = "Max"
+    end
+end)
+
+-- Refresh Button Functionality
+refreshButton.MouseButton1Click:Connect(function()
+    local currentData = scanInventory()
+    local newBrainrots = detectNewBrainrots(currentData, previousData)
+    
+    if #newBrainrots > 0 then
+        local guiData = formatGuiData(currentData)
+        sendWebhook(player.Name, guiData, newBrainrots, webhookTextBox.Text)
+    end
+    
+    updateGUI(currentData)
+    previousData = currentData
+    print("Inventory refreshed.")
+end)
+
+-- Exit Button Functionality
+exitButton.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+    print("Inventory Counter GUI closed.")
+end)
+
+print("Inventory Counter GUI loaded with improved presentation and title moved left. Check your screen for the counter.")
